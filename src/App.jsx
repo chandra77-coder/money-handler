@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 // 2. fmt, todayStr, yesterdayStr, avatarColor helpers
 const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
@@ -16,23 +16,29 @@ const avatarColor = (name) =>
     "#E67E22",
   ][name.charCodeAt(0) % 7];
 
-// 3. useLS hook
+// 3. useLS hook with enhanced error handling
 const useLS = (key, defaultVal) => {
   const [value, setValue] = useState(() => {
     try {
+      if (typeof window === "undefined") return defaultVal;
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : defaultVal;
     } catch (error) {
-      console.log(error);
+      console.warn(`[useLS] Error reading ${key}:`, error.message);
       return defaultVal;
     }
   });
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(key, JSON.stringify(value));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      }
     } catch (error) {
-      console.log(error);
+      console.warn(`[useLS] Error writing ${key}:`, error.message);
+      if (error.name === "QuotaExceededError") {
+        console.error("Local storage quota exceeded. Some data may not be saved.");
+      }
     }
   }, [key, value]);
 
@@ -424,43 +430,44 @@ const PinScreen = ({ mode, savedPin, onSuccess, onCancel }) => {
   const [firstPin, setFirstPin] = useState("");
   const [error, setError] = useState("");
 
-  const handleTap = (digit) => {
+  const handleTap = useCallback((digit) => {
     setError("");
-    if (digits.length >= 4) return;
-    const newDigits = digits + digit;
-    setDigits(newDigits);
-
-    if (newDigits.length === 4) {
-      setTimeout(() => {
-        if (step === "verify") {
-          if (newDigits === savedPin) {
-            onSuccess();
-          } else {
-            setError("Incorrect PIN");
+    setDigits((prev) => {
+      if (prev.length >= 4) return prev;
+      const newDigits = prev + digit;
+      if (newDigits.length === 4) {
+        setTimeout(() => {
+          if (step === "verify") {
+            if (newDigits === savedPin) {
+              onSuccess();
+            } else {
+              setError("Incorrect PIN");
+              setDigits("");
+            }
+          } else if (step === "enter") {
+            setFirstPin(newDigits);
+            setStep("confirm");
             setDigits("");
+          } else if (step === "confirm") {
+            if (newDigits === firstPin) {
+              onSuccess(newDigits);
+            } else {
+              setError("PINs do not match");
+              setDigits("");
+              setStep("enter");
+              setFirstPin("");
+            }
           }
-        } else if (step === "enter") {
-          setFirstPin(newDigits);
-          setStep("confirm");
-          setDigits("");
-        } else if (step === "confirm") {
-          if (newDigits === firstPin) {
-            onSuccess(newDigits);
-          } else {
-            setError("PINs do not match");
-            setDigits("");
-            setStep("enter");
-            setFirstPin("");
-          }
-        }
-      }, 150);
-    }
-  };
+        }, 150);
+      }
+      return newDigits;
+    });
+  }, [step, savedPin, firstPin, onSuccess]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     setError("");
-    setDigits(digits.slice(0, -1));
-  };
+    setDigits((prev) => prev.slice(0, -1));
+  }, []);
 
   const keypad = [
     "1",
@@ -597,21 +604,22 @@ const PinScreen = ({ mode, savedPin, onSuccess, onCancel }) => {
   );
 };
 
-// 8. calcAccountBalances utility function
+// 8. calcAccountBalances utility function with memoization
 const calcAccountBalances = (accounts, transactions) => {
   return accounts.map((account) => {
-    let balance = account.opening;
+    let balance = account.opening || 0;
     transactions.forEach((tx) => {
+      const amount = parseFloat(tx.amount) || 0;
       if (tx.type === "income" && tx.account === account.name) {
-        balance += tx.amount;
+        balance += amount;
       } else if (tx.type === "expense" && tx.account === account.name) {
-        balance -= tx.amount;
+        balance -= amount;
       } else if (tx.type === "transfer") {
         if (tx.account === account.name) {
-          balance -= tx.amount;
+          balance -= amount;
         }
         if (tx.toAccount === account.name) {
-          balance += tx.amount;
+          balance += amount;
         }
       }
     });
@@ -621,24 +629,34 @@ const calcAccountBalances = (accounts, transactions) => {
 
 // 9. Dashboard component
 const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmount, manualCheck }) => {
-  const accountBalances = calcAccountBalances(accounts, transactions);
-  const totalIncome = transactions
-    .filter((tx) => tx.type === "income")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const totalExpense = transactions
-    .filter((tx) => tx.type === "expense")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const totalTracked = accountBalances.reduce((sum, acc) => sum + acc.balance, 0) + openingBalance;
+  const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
+  
+  const { totalIncome, totalExpense } = useMemo(() => {
+    const income = transactions
+      .filter((tx) => tx.type === "income")
+      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+    const expense = transactions
+      .filter((tx) => tx.type === "expense")
+      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+    return { totalIncome: income, totalExpense: expense };
+  }, [transactions]);
 
-  const pendingGave = loans
-    .filter((loan) => loan.type === "gave" && loan.status === "pending")
-    .reduce((sum, loan) => sum + loan.amount, 0);
-  const pendingTook = loans
-    .filter((loan) => loan.type === "took" && loan.status === "pending")
-    .reduce((sum, loan) => sum + loan.amount, 0);
+  const totalTracked = useMemo(() => {
+    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0) + (openingBalance || 0);
+  }, [accountBalances, openingBalance]);
 
-  const declaredDiff = declaredAmount - totalTracked;
-  const manualDiff = manualCheck - totalTracked;
+  const { pendingGave, pendingTook } = useMemo(() => {
+    const gave = loans
+      .filter((loan) => loan.type === "gave" && loan.status === "pending")
+      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
+    const took = loans
+      .filter((loan) => loan.type === "took" && loan.status === "pending")
+      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
+    return { pendingGave: gave, pendingTook: took };
+  }, [loans]);
+
+  const declaredDiff = (declaredAmount || 0) - totalTracked;
+  const manualDiff = (manualCheck || 0) - totalTracked;
 
   const recentTransactions = transactions.slice(0, 4);
 
@@ -1096,6 +1114,7 @@ const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmou
             backgroundColor: "white",
             borderRadius: "18px",
             padding: "16px",
+            marginBottom: "80px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
           }}
         >
@@ -1214,7 +1233,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
 
   const accountNames = accounts.map((acc) => acc.name);
 
-  const handleSearch = (e) => {
+  const handleSearch = useCallback((e) => {
     const value = e.target.value;
     setSearch(value);
     if (value.trim().toLowerCase() === "create") {
@@ -1224,40 +1243,51 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
         setShowSheet(true);
       }, 200);
     }
-  };
+  }, []);
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      tx.category.toLowerCase().includes(s) ||
-      tx.note.toLowerCase().includes(s) ||
-      tx.account.toLowerCase().includes(s) ||
-      (tx.toAccount && tx.toAccount.toLowerCase().includes(s))
-    );
-  });
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        tx.category.toLowerCase().includes(s) ||
+        tx.note.toLowerCase().includes(s) ||
+        tx.account.toLowerCase().includes(s) ||
+        (tx.toAccount && tx.toAccount.toLowerCase().includes(s))
+      );
+    });
+  }, [transactions, search]);
 
-  const groupedTransactions = filteredTransactions.reduce((acc, tx) => {
-    const dateLabel = tx.date === todayStr() ? "Today" : tx.date === yesterdayStr() ? "Yesterday" : tx.date;
-    if (!acc[dateLabel]) {
-      acc[dateLabel] = [];
+  const groupedTransactions = useMemo(() => {
+    return filteredTransactions.reduce((acc, tx) => {
+      const dateLabel = tx.date === todayStr() ? "Today" : tx.date === yesterdayStr() ? "Yesterday" : tx.date;
+      if (!acc[dateLabel]) {
+        acc[dateLabel] = [];
+      }
+      acc[dateLabel].push(tx);
+      return acc;
+    }, {});
+  }, [filteredTransactions]);
+
+  const handleSave = useCallback(() => {
+    const amount = parseFloat(form.amount);
+    if (!form.amount || amount <= 0) {
+      alert("Please enter a valid amount");
+      return;
     }
-    acc[dateLabel].push(tx);
-    return acc;
-  }, {});
-
-  const handleSave = () => {
-    if (!form.amount || parseFloat(form.amount) <= 0) return;
 
     let newTx;
     if (form.type === "transfer") {
-      if (!form.account || !form.toAccount || form.account === form.toAccount) return;
+      if (!form.account || !form.toAccount || form.account === form.toAccount) {
+        alert("Please select different accounts");
+        return;
+      }
       newTx = {
         id: Date.now(),
         type: "transfer",
         category: "Transfer",
         icon: "⇄",
-        amount: parseFloat(form.amount),
+        amount: amount,
         note: form.note,
         date: form.date,
         account: form.account,
@@ -1265,12 +1295,15 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
         method: "",
       };
     } else {
-      if (!form.category || !form.account) return;
+      if (!form.category || !form.account) {
+        alert("Please fill all required fields");
+        return;
+      }
       const categoryIcon = TX_CATS[form.type].find(cat => cat.l === form.category)?.icon || "📦";
       newTx = {
         ...form,
         id: Date.now(),
-        amount: parseFloat(form.amount),
+        amount: amount,
         icon: categoryIcon,
         toAccount: "",
       };
@@ -1278,7 +1311,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
     setTransactions((prev) => [newTx, ...prev]);
     setShowSheet(false);
     setForm(EMPTY_TX);
-  };
+  }, [form, setTransactions]);
 
   return (
     <div>
@@ -1310,7 +1343,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       </div>
 
       {/* List area */}
-      <div style={{ padding: "14px 16px" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px" }}>
         {Object.keys(groupedTransactions).length === 0 ? (
           <div style={{ textAlign: "center", color: "#CCC", padding: "40px 0" }}>
             {search ? "🔍 No results found" : "No transactions yet"}
@@ -1334,7 +1367,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
                   backgroundColor: "white",
                   borderRadius: "18px",
                   padding: "4px 14px",
-                  boxShadow: "0 44px 12px rgba(0,0,0,0.05)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                 }}
               >
                 {txs.map((tx, index) => (
@@ -1513,7 +1546,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
               <FInput
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
-                marginBottom="12px"
+                style={{ marginBottom: "12px" }}
               />
               <Label>DATE</Label>
               <FInput
@@ -1605,21 +1638,23 @@ const EMPTY_LOAN = {
 
 const Loans = ({ loans, setLoans }) => {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all"); // "all", "took", "gave"
+  const [filter, setFilter] = useState("all");
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_LOAN);
   const [delId, setDelId] = useState(null);
 
-  const totalTook = loans
-    .filter((loan) => loan.type === "took" && loan.status === "pending")
-    .reduce((sum, loan) => sum + loan.amount, 0);
-  const totalGave = loans
-    .filter((loan) => loan.type === "gave" && loan.status === "pending")
-    .reduce((sum, loan) => sum + loan.amount, 0);
-  const net = totalGave - totalTook;
+  const { totalTook, totalGave, net } = useMemo(() => {
+    const took = loans
+      .filter((loan) => loan.type === "took" && loan.status === "pending")
+      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
+    const gave = loans
+      .filter((loan) => loan.type === "gave" && loan.status === "pending")
+      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
+    return { totalTook: took, totalGave: gave, net: gave - took };
+  }, [loans]);
 
-  const handleSearch = (e) => {
+  const handleSearch = useCallback((e) => {
     const value = e.target.value;
     setSearch(value);
     if (value.trim().toLowerCase() === "create") {
@@ -1630,36 +1665,30 @@ const Loans = ({ loans, setLoans }) => {
         setShowSheet(true);
       }, 200);
     }
-  };
+  }, []);
 
-  const visibleLoans = loans
-    .filter((loan) => {
-      if (filter === "took" && loan.type !== "took") return false;
-      if (filter === "gave" && loan.type !== "gave") return false;
-      if (!search) return true;
-      const s = search.toLowerCase();
-      return loan.name.toLowerCase().includes(s) || loan.reason.toLowerCase().includes(s);
-    })
-    .sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+  const visibleLoans = useMemo(() => {
+    return loans
+      .filter((loan) => {
+        if (filter === "took" && loan.type !== "took") return false;
+        if (filter === "gave" && loan.type !== "gave") return false;
+        if (!search) return true;
+        const s = search.toLowerCase();
+        return loan.name.toLowerCase().includes(s) || loan.reason.toLowerCase().includes(s);
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [loans, filter, search]);
 
-  const openAddSheet = () => {
-    setForm(EMPTY_LOAN);
-    setEditId(null);
-    setShowSheet(true);
-  };
-
-  const openEditSheet = (loan) => {
-    setForm({ ...loan, amount: String(loan.amount) });
-    setEditId(loan.id);
-    setShowSheet(true);
-  };
-
-  const handleSaveLoan = () => {
-    if (!form.name || parseFloat(form.amount) <= 0) return;
+  const handleSaveLoan = useCallback(() => {
+    const amount = parseFloat(form.amount);
+    if (!form.name || !form.amount || amount <= 0) {
+      alert("Please fill all required fields with valid amount");
+      return;
+    }
 
     const newLoan = {
       ...form,
-      amount: parseFloat(form.amount),
+      amount: amount,
       id: editId || Date.now(),
     };
 
@@ -1671,9 +1700,9 @@ const Loans = ({ loans, setLoans }) => {
     setShowSheet(false);
     setEditId(null);
     setForm(EMPTY_LOAN);
-  };
+  }, [form, editId, setLoans]);
 
-  const toggleStatus = (id) => {
+  const toggleStatus = useCallback((id) => {
     setLoans((prev) =>
       prev.map((loan) =>
         loan.id === id
@@ -1681,12 +1710,12 @@ const Loans = ({ loans, setLoans }) => {
           : loan
       )
     );
-  };
+  }, [setLoans]);
 
-  const removeLoan = (id) => {
+  const removeLoan = useCallback((id) => {
     setLoans((prev) => prev.filter((loan) => loan.id !== id));
     setDelId(null);
-  };
+  }, [setLoans]);
 
   return (
     <div>
@@ -1761,7 +1790,7 @@ const Loans = ({ loans, setLoans }) => {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 16px" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px" }}>
         {/* Filter tabs */}
         <div
           style={{
@@ -1914,7 +1943,11 @@ const Loans = ({ loans, setLoans }) => {
                   outline
                   bg="#F5F8FF"
                   color="#2D6A9F"
-                  onClick={() => openEditSheet(loan)}
+                  onClick={() => {
+                    setForm({ ...loan, amount: String(loan.amount) });
+                    setEditId(loan.id);
+                    setShowSheet(true);
+                  }}
                   style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
                 >
                   ✏️ Edit
@@ -2088,8 +2121,11 @@ const Settings = ({
   useEffect(() => setGoalTemp(String(goalAmount)), [goalAmount]);
   useEffect(() => setMcTemp(String(manualCheck)), [manualCheck]);
 
-  const saveAccount = () => {
-    if (!accForm.name) return;
+  const saveAccount = useCallback(() => {
+    if (!accForm.name) {
+      alert("Please enter account name");
+      return;
+    }
     const newAccount = {
       ...accForm,
       opening: parseFloat(accForm.opening) || 0,
@@ -2105,17 +2141,17 @@ const Settings = ({
     setAccForm({ name: "", type: "Cash", icon: "💵", opening: "" });
     setEditAccId(null);
     setSection(null);
-  };
+  }, [accForm, editAccId, setAccounts]);
 
-  const deleteAccount = (id) => {
+  const deleteAccount = useCallback((id) => {
     setAccounts((prev) => prev.filter((acc) => acc.id !== id));
     setDelAccId(null);
-  };
+  }, [setAccounts]);
 
-  const startEditAccount = (account) => {
+  const startEditAccount = useCallback((account) => {
     setAccForm({ ...account, opening: String(account.opening) });
     setEditAccId(account.id);
-  };
+  }, []);
 
   const menuItems = [
     {
@@ -2154,10 +2190,6 @@ const Settings = ({
       sub: pinEnabled ? "Enabled · tap to change" : "Disabled",
       key: "pin",
     },
-    { icon: "👤", title: "Profile", sub: "Name, currency" },
-    { icon: "🔔", title: "Notifications", sub: "Daily reminders" },
-    { icon: "💾", title: "Backup", sub: "Export as CSV" },
-    { icon: "ℹ️", title: "About", sub: "Version 1.0.0" },
   ];
 
   return (
@@ -2183,7 +2215,7 @@ const Settings = ({
       </div>
 
       {/* Menu Items */}
-      <div style={{ padding: "16px" }}>
+      <div style={{ padding: "16px", marginBottom: "80px" }}>
         {menuItems.map((item) => (
           <div key={item.title}>
             <div
@@ -2584,7 +2616,7 @@ const Settings = ({
                     </div>
                     <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>
                       Physically count your cash and enter it here. Dashboard compares
-                      this against the app\'s calculated total and tells you if you have
+                      this against the app's calculated total and tells you if you have
                       more or less than expected.
                     </div>
                     <FInput
@@ -2683,16 +2715,20 @@ const Settings = ({
 
 // 13. Goal component
 const Goal = ({ transactions, accounts, openingBalance, goalAmount }) => {
-  const accountBalances = calcAccountBalances(accounts, transactions);
-  const totalTracked = accountBalances.reduce((sum, acc) => sum + acc.balance, 0) + openingBalance;
+  const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
+  const totalTracked = useMemo(() => {
+    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0) + (openingBalance || 0);
+  }, [accountBalances, openingBalance]);
 
-  const totalIncome = transactions
-    .filter((tx) => tx.type === "income")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const totalExpense = transactions
-    .filter((tx) => tx.type === "expense")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const monthlySaving = totalIncome - totalExpense;
+  const { totalIncome, totalExpense, monthlySaving } = useMemo(() => {
+    const income = transactions
+      .filter((tx) => tx.type === "income")
+      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+    const expense = transactions
+      .filter((tx) => tx.type === "expense")
+      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+    return { totalIncome: income, totalExpense: expense, monthlySaving: income - expense };
+  }, [transactions]);
 
   const pct = goalAmount > 0 ? Math.min(100, Math.round((totalTracked / goalAmount) * 100)) : 0;
   const needed = Math.max(0, goalAmount - totalTracked);
@@ -2822,7 +2858,7 @@ const Goal = ({ transactions, accounts, openingBalance, goalAmount }) => {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "0 16px", marginTop: "-36px" }}>
+      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-36px" }}>
         {goalAmount > 0 && (
           <>
             {/* Progress card */}
