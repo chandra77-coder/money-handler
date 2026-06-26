@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MoneyMate</string>
+    <string name="title_activity_main">MoneyMate</string>
+    <string name="package_name">com.chandra77.moneymate</string>
+    <string name="custom_url_scheme">com.chandra77.moneymate</string>
+</resources>
