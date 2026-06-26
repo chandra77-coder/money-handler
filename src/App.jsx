@@ -48,125 +48,14 @@ const useLS = (key, defaultVal) => {
 };
 
 // 4. SEED_ACCOUNTS, SEED_TX, SEED_LOANS constants
-const SEED_ACCOUNTS = [
-  { id: 1, name: "Cash", type: "Cash", icon: "💵", opening: 8500 },
-  { id: 2, name: "SBI Bank", type: "Bank", icon: "🏦", opening: 42000 },
-  { id: 3, name: "PhonePe", type: "Wallet", icon: "📱", opening: 1200 },
-];
+// Empty by default - users can add their own accounts
+const SEED_ACCOUNTS = [];
 
-const SEED_TX = [
-  {
-    id: 1,
-    type: "income",
-    category: "Salary",
-    icon: "💼",
-    amount: 18000,
-    note: "June salary",
-    date: "2026-06-24",
-    account: "SBI Bank",
-    toAccount: "",
-    method: "Bank Transfer",
-  },
-  {
-    id: 2,
-    type: "expense",
-    category: "Food",
-    icon: "🍛",
-    amount: 450,
-    note: "Lunch & dinner",
-    date: "2026-06-24",
-    account: "Cash",
-    toAccount: "",
-    method: "Cash",
-  },
-  {
-    id: 3,
-    type: "expense",
-    category: "Travel",
-    icon: "🚌",
-    amount: 120,
-    note: "Bus fare",
-    date: "2026-06-23",
-    account: "Cash",
-    toAccount: "",
-    method: "Cash",
-  },
-  {
-    id: 4,
-    type: "income",
-    category: "Freelance",
-    icon: "💻",
-    amount: 3500,
-    note: "Web project",
-    date: "2026-06-22",
-    account: "PhonePe",
-    toAccount: "",
-    method: "Online / UPI",
-  },
-  {
-    id: 5,
-    type: "expense",
-    category: "Bills",
-    icon: "📄",
-    amount: 800,
-    note: "Electricity",
-    date: "2026-06-21",
-    account: "SBI Bank",
-    toAccount: "",
-    method: "Online / UPI",
-  },
-  {
-    id: 6,
-    type: "transfer",
-    category: "Transfer",
-    icon: "⇄",
-    amount: 3000,
-    note: "Moving to bank",
-    date: "2026-06-20",
-    account: "Cash",
-    toAccount: "SBI Bank",
-    method: "",
-  },
-];
+// Empty by default - users can add their own transactions
+const SEED_TX = [];
 
-const SEED_LOANS = [
-  {
-    id: 1,
-    type: "took",
-    name: "Rahul Sharma",
-    amount: 5000,
-    reason: "Medical emergency",
-    date: "2026-06-10",
-    status: "pending",
-  },
-  {
-    id: 2,
-    type: "took",
-    name: "Suresh Das",
-    amount: 2000,
-    reason: "Travel",
-    date: "2026-06-15",
-    status: "pending",
-  },
-  {
-    id: 3,
-    type: "gave",
-    name: "Amit Roy",
-    amount: 3000,
-    reason: "Business help",
-    date: "2026-06-12",
-    status: "pending",
-  },
-  {
-    id: 4,
-    type: "gave",
-    name: "Priya Sen",
-    amount: 1500,
-    reason: "Personal",
-    date: "2026-06-05",
-    status: "returned",
-  },
-];
+// Empty by default - users can add their own loans
+const SEED_LOANS = [];
 
 // 5. TX_CATS, INCOME_METHODS, EXPENSE_METHODS, ACCOUNT_TYPES constants
 const TX_CATS = {
@@ -765,7 +654,7 @@ const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmou
       </div>
 
       {/* Content */}
-      <div style={{ padding: "0 16px", marginTop: "-36px" }}>
+      <div style={{ padding: "0 16px", marginTop: "-36px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {/* Accounts card */}
         {accounts.length > 0 && (
           <div
@@ -1258,7 +1147,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
         ((tx.toAccount || "").toLowerCase().includes(s))
       );
     });
-  }, [transactions, search]);}
+  }, [transactions, search]);
 
   const groupedTransactions = useMemo(() => {
     return filteredTransactions.reduce((acc, tx) => {
@@ -1345,7 +1234,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       </div>
 
       {/* List area */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {Object.keys(groupedTransactions).length === 0 ? (
           <div style={{ textAlign: "center", color: "#CCC", padding: "40px 0" }}>
             {search ? "🔍 No results found" : "No transactions yet"}
@@ -1679,7 +1568,7 @@ const Loans = ({ loans, setLoans }) => {
         return ((loan.name || "").toLowerCase().includes(s) || (loan.reason || "").toLowerCase().includes(s));
       })
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [loans, filter, search]);}
+  }, [loans, filter, search]);
 
   const handleSaveLoan = useCallback(() => {
     const amount = parseFloat(form.amount);
@@ -1792,7 +1681,7 @@ const Loans = ({ loans, setLoans }) => {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {/* Filter tabs */}
         <div
           style={{
@@ -2237,7 +2126,7 @@ const Settings = ({
       </div>
 
       {/* Menu Items */}
-      <div style={{ padding: "16px", marginBottom: "80px" }}>
+      <div style={{ padding: "16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {menuItems.map((item) => (
           <div key={item.title}>
             <div
@@ -2880,7 +2769,7 @@ const Goal = ({ transactions, accounts, openingBalance, goalAmount }) => {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-36px" }}>
+      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-36px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {goalAmount > 0 && (
           <>
             {/* Progress card */}
