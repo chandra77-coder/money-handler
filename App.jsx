@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 // ============ HELPERS ============
 const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
@@ -6,6 +6,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 const yesterdayStr = () => new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const avatarColor = (name) => {
   const colors = ["#4F7CAC", "#E07B54", "#5BA858", "#9B59B6", "#E74C3C", "#1ABC9C", "#E67E22"];
+  if (!name || name.length === 0) return colors[0];
   return colors[name.charCodeAt(0) % 7];
 };
 
@@ -793,10 +794,10 @@ function Transactions({ transactions, setTransactions, accounts }) {
   const filtered = search
     ? transactions.filter(
         (t) =>
-          t.category.toLowerCase().includes(search.toLowerCase()) ||
-          t.note.toLowerCase().includes(search.toLowerCase()) ||
-          t.account.toLowerCase().includes(search.toLowerCase()) ||
-          t.toAccount.toLowerCase().includes(search.toLowerCase())
+          (t.category || "").toLowerCase().includes(search.toLowerCase()) ||
+          (t.note || "").toLowerCase().includes(search.toLowerCase()) ||
+          (t.account || "").toLowerCase().includes(search.toLowerCase()) ||
+          (t.toAccount || "").toLowerCase().includes(search.toLowerCase())
       )
     : transactions;
 
@@ -1103,7 +1104,7 @@ function Loans({ loans, setLoans }) {
   const visible = loans.filter(
     (l) =>
       (filter === "all" || l.type === filter) &&
-      (l.name.toLowerCase().includes(search.toLowerCase()) || l.reason.toLowerCase().includes(search.toLowerCase()))
+      ((l.name || "").toLowerCase().includes(search.toLowerCase()) || (l.reason || "").toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleSave = () => {
