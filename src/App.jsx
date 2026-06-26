@@ -2192,6 +2192,26 @@ const Settings = ({
       sub: pinEnabled ? "Enabled · tap to change" : "Disabled",
       key: "pin",
     },
+    {
+      icon: "👤",
+      title: "Profile",
+      sub: "Name, currency",
+    },
+    {
+      icon: "🔔",
+      title: "Notifications",
+      sub: "Daily reminders",
+    },
+    {
+      icon: "💾",
+      title: "Backup",
+      sub: "Export as CSV",
+    },
+    {
+      icon: "ℹ️",
+      title: "About",
+      sub: "Version 1.0.0",
+    },
   ];
 
   return (
@@ -3128,15 +3148,15 @@ const Goal = ({ transactions, accounts, openingBalance, goalAmount }) => {
 // 14. Main App component
 const App = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [accounts, setAccounts] = useLS("mm-accounts", SEED_ACCOUNTS);
-  const [transactions, setTransactions] = useLS("mm-transactions", SEED_TX);
-  const [loans, setLoans] = useLS("mm-loans", SEED_LOANS);
-  const [openingBalance, setOpeningBalance] = useLS("mm-openingBalance", 0);
-  const [declaredAmount, setDeclaredAmount] = useLS("mm-declaredAmount", 0);
-  const [goalAmount, setGoalAmount] = useLS("mm-goalAmount", 0);
-  const [manualCheck, setManualCheck] = useLS("mm-manualCheck", 0);
-  const [pin, setPin] = useLS("mm-pin", "");
-  const [pinEnabled, setPinEnabled] = useLS("mm-pinEnabled", false);
+  const [accounts, setAccounts] = useLS("fm_accounts", SEED_ACCOUNTS);
+  const [transactions, setTransactions] = useLS("fm_transactions", SEED_TX);
+  const [loans, setLoans] = useLS("fm_loans", SEED_LOANS);
+  const [openingBalance, setOpeningBalance] = useLS("fm_opening", 0);
+  const [declaredAmount, setDeclaredAmount] = useLS("fm_declared", 0);
+  const [goalAmount, setGoalAmount] = useLS("fm_goal", 0);
+  const [manualCheck, setManualCheck] = useLS("fm_manual", 0);
+  const [pin, setPin] = useLS("fm_pin", "");
+  const [pinEnabled, setPinEnabled] = useLS("fm_pin_enabled", false);
   const [pinVerified, setPinVerified] = useState(!pinEnabled);
 
   // Reset pinVerified when PIN settings change
@@ -3229,8 +3249,8 @@ const App = () => {
           zIndex: 200,
         }}
       >
-        {[["dashboard", "📊", "Dashboard"],
-          ["transactions", "💸", "Transactions"],
+        {[["dashboard", "🏠", "Home"],
+          ["transactions", "💳", "Txns"],
           ["loans", "🤝", "Loans"],
           ["goal", "🎯", "Goal"],
           ["settings", "⚙️", "Settings"],
