@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 
 // 2. fmt, todayStr, yesterdayStr, avatarColor helpers
 const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const yesterdayStr = () =>
   new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-const avatarColor = (name) =>
-  [
+const avatarColor = (name) => {
+  if (!name || name.length === 0) return "#4F7CAC";
+  return [
     "#4F7CAC",
     "#E07B54",
     "#5BA858",
@@ -15,6 +16,7 @@ const avatarColor = (name) =>
     "#1ABC9C",
     "#E67E22",
   ][name.charCodeAt(0) % 7];
+};
 
 // 3. useLS hook with enhanced error handling
 const useLS = (key, defaultVal) => {
@@ -1250,13 +1252,13 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       if (!search) return true;
       const s = search.toLowerCase();
       return (
-        tx.category.toLowerCase().includes(s) ||
-        tx.note.toLowerCase().includes(s) ||
-        tx.account.toLowerCase().includes(s) ||
-        (tx.toAccount && tx.toAccount.toLowerCase().includes(s))
+        (tx.category || "").toLowerCase().includes(s) ||
+        (tx.note || "").toLowerCase().includes(s) ||
+        (tx.account || "").toLowerCase().includes(s) ||
+        ((tx.toAccount || "").toLowerCase().includes(s))
       );
     });
-  }, [transactions, search]);
+  }, [transactions, search]);}
 
   const groupedTransactions = useMemo(() => {
     return filteredTransactions.reduce((acc, tx) => {
@@ -1674,10 +1676,10 @@ const Loans = ({ loans, setLoans }) => {
         if (filter === "gave" && loan.type !== "gave") return false;
         if (!search) return true;
         const s = search.toLowerCase();
-        return loan.name.toLowerCase().includes(s) || loan.reason.toLowerCase().includes(s);
+        return ((loan.name || "").toLowerCase().includes(s) || (loan.reason || "").toLowerCase().includes(s));
       })
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [loans, filter, search]);
+  }, [loans, filter, search]);}
 
   const handleSaveLoan = useCallback(() => {
     const amount = parseFloat(form.amount);
@@ -3137,12 +3139,18 @@ const App = () => {
   const [pinEnabled, setPinEnabled] = useLS("mm-pinEnabled", false);
   const [pinVerified, setPinVerified] = useState(!pinEnabled);
 
+  // Reset pinVerified when PIN settings change
+  useEffect(() => {
+    setPinVerified(!pinEnabled);
+  }, [pinEnabled]);
+
   if (pinEnabled && !pinVerified) {
     return (
       <PinScreen
         mode="verify"
         savedPin={pin}
         onSuccess={() => setPinVerified(true)}
+        onCancel={() => setPinVerified(false)}
       />
     );
   }
