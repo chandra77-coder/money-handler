@@ -499,7 +499,7 @@ const PinScreen = ({ mode, savedPin, onSuccess, onCancel }) => {
 // 8. calcAccountBalances utility function with memoization
 const calcAccountBalances = (accounts, transactions) => {
   return accounts.map((account) => {
-    let balance = account.opening || 0;
+    let balance = parseFloat(account.opening) || 0;
     transactions.forEach((tx) => {
       const amount = parseFloat(tx.amount) || 0;
       if (tx.type === "income" && tx.account === account.name) {
@@ -2033,9 +2033,10 @@ const Settings = ({
       alert("Please enter account name");
       return;
     }
+    const openingVal = parseFloat(String(accForm.opening).replace(/,/g, "")) || 0;
     const newAccount = {
       ...accForm,
-      opening: parseFloat(accForm.opening) || 0,
+      opening: openingVal,
       id: editAccId || Date.now(),
     };
     if (editAccId) {
