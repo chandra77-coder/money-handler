@@ -159,7 +159,7 @@ const FBtn = ({ outline, bg, color = "#1E3A5F", style, onClick, children }) => (
       borderRadius: "12px",
       cursor: "pointer",
       border: outline ? `1.5px solid ${color}` : "none",
-      backgroundColor: outline ? "white" : bg || "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
+      background: outline ? "white" : bg || "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
       color: outline ? color : "white",
       padding: "12px 14px",
       width: "100%",
@@ -244,7 +244,7 @@ const TypeToggle = ({ options, value, onChange, colors = {} }) => (
           fontSize: "12px",
           textAlign: "center",
           cursor: "pointer",
-          backgroundColor:
+          background:
             value === optValue
               ? colors[optValue] || "linear-gradient(135deg,#2D6A9F,#1E3A5F)"
               : "transparent",
