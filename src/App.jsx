@@ -520,7 +520,7 @@ const calcAccountBalances = (accounts, transactions) => {
 };
 
 // 9. Dashboard component
-const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmount, manualCheck }) => {
+const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck }) => {
   const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
   
   const { totalIncome, totalExpense } = useMemo(() => {
@@ -534,8 +534,8 @@ const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmou
   }, [transactions]);
 
   const totalTracked = useMemo(() => {
-    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0) + (openingBalance || 0);
-  }, [accountBalances, openingBalance]);
+    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+  }, [accountBalances]);
 
   const { pendingGave, pendingTook } = useMemo(() => {
     const gave = loans
@@ -620,11 +620,6 @@ const Dashboard = ({ transactions, loans, accounts, openingBalance, declaredAmou
           >
             {fmt(totalTracked)}
           </div>
-          {openingBalance > 0 && (
-            <div style={{ fontSize: "11px", opacity: 0.55 }}>
-              Includes {fmt(openingBalance)} opening balance
-            </div>
-          )}
           <div
             style={{
               display: "flex",
@@ -1979,8 +1974,6 @@ const Loans = ({ loans, setLoans }) => {
 const Settings = ({
   accounts,
   setAccounts,
-  openingBalance,
-  setOpeningBalance,
   declaredAmount,
   setDeclaredAmount,
   goalAmount,
@@ -2003,7 +1996,6 @@ const Settings = ({
   const [delAccId, setDelAccId] = useState(null);
   const [showPinSet, setShowPinSet] = useState(false);
 
-  const [obTemp, setObTemp] = useState("");
   const [daTemp, setDaTemp] = useState("");
   const [goalTemp, setGoalTemp] = useState("");
   const [mcTemp, setMcTemp] = useState("");
@@ -2171,35 +2163,6 @@ const Settings = ({
           </div>
         )}
 
-        {/* OPENING BALANCE */}
-        <div onClick={() => toggle("opening")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>💵</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Opening Balance</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{openingBalance > 0 ? fmt(openingBalance) : "Not set"}</div>
-          </div>
-          {chevron("opening")}
-        </div>
-        {section === "opening" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Opening Balance</div>
-            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>A global starting amount added to your total balance on top of individual account balances.</div>
-            <FInput
-              type="number"
-              value={obTemp}
-              onChange={(e) => setObTemp(e.target.value)}
-              placeholder={openingBalance > 0 ? fmt(openingBalance) : "₹ 0"}
-              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              {openingBalance > 0 && (
-                <FBtn bg="#E53E3E" onClick={() => { setOpeningBalance(0); setObTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
-              )}
-              <FBtn onClick={() => { setOpeningBalance(parseFloat(obTemp) || 0); setObTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
-            </div>
-          </div>
-        )}
-
         {/* DECLARED TOTAL */}
         <div onClick={() => toggle("declared")} style={menuRowStyle}>
           <div style={iconBoxStyle}>💼</div>
@@ -2353,11 +2316,11 @@ const Settings = ({
 };
 
 // 13. Goal component
-const Goal = ({ transactions, accounts, openingBalance, goalAmount }) => {
+const Goal = ({ transactions, accounts, goalAmount }) => {
   const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
   const totalTracked = useMemo(() => {
-    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0) + (openingBalance || 0);
-  }, [accountBalances, openingBalance]);
+    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+  }, [accountBalances]);
 
   const { totalIncome, totalExpense, monthlySaving } = useMemo(() => {
     const income = transactions
@@ -2768,7 +2731,6 @@ const App = () => {
   const [accounts, setAccounts] = useLS("fm_accounts", SEED_ACCOUNTS);
   const [transactions, setTransactions] = useLS("fm_transactions", SEED_TX);
   const [loans, setLoans] = useLS("fm_loans", SEED_LOANS);
-  const [openingBalance, setOpeningBalance] = useLS("fm_opening", 0);
   const [declaredAmount, setDeclaredAmount] = useLS("fm_declared", 0);
   const [goalAmount, setGoalAmount] = useLS("fm_goal", 0);
   const [manualCheck, setManualCheck] = useLS("fm_manual", 0);
@@ -2809,7 +2771,6 @@ const App = () => {
           transactions={transactions}
           loans={loans}
           accounts={accounts}
-          openingBalance={openingBalance}
           declaredAmount={declaredAmount}
           manualCheck={manualCheck}
         />
@@ -2826,7 +2787,6 @@ const App = () => {
         <Goal
           transactions={transactions}
           accounts={accounts}
-          openingBalance={openingBalance}
           goalAmount={goalAmount}
         />
       )}
@@ -2834,8 +2794,6 @@ const App = () => {
         <Settings
           accounts={accounts}
           setAccounts={setAccounts}
-          openingBalance={openingBalance}
-          setOpeningBalance={setOpeningBalance}
           declaredAmount={declaredAmount}
           setDeclaredAmount={setDeclaredAmount}
           goalAmount={goalAmount}
