@@ -1704,7 +1704,7 @@ const Loans = ({ loans, setLoans }) => {
                   fontSize: "12px",
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  backgroundColor:
+                  background:
                     filter === filterValue
                       ? "linear-gradient(135deg,#2D6A9F,#1E3A5F)"
                       : "transparent",
@@ -1897,6 +1897,34 @@ const Loans = ({ loans, setLoans }) => {
           ))
         )}
       </div>
+
+      {/* FAB */}
+      <button
+        onClick={() => {
+          setForm(EMPTY_LOAN);
+          setEditId(null);
+          setShowSheet(true);
+        }}
+        style={{
+          position: "fixed",
+          bottom: "90px",
+          right: `calc(50% - 210px + 16px)`,
+          width: "56px",
+          height: "56px",
+          borderRadius: "50%",
+          background: "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
+          color: "white",
+          fontSize: "28px",
+          border: "none",
+          boxShadow: "0 4px 20px rgba(30,58,95,0.4)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+        }}
+      >
+        +
+      </button>
 
       {/* Add/Edit Loan Sheet */}
       <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
