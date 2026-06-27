@@ -192,13 +192,14 @@ const SearchBar = ({ value, onChange, onClear }) => (
         width: "100%",
         padding: "11px 36px",
         borderRadius: "14px",
-        border: "1.5px solid #E8EDF3",
+        border: "none",
         fontSize: "13px",
-        backgroundColor: "white",
-        boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
+        backgroundColor: "rgba(255,255,255,0.95)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         boxSizing: "border-box",
         fontFamily: "inherit",
         outline: "none",
+        color: "#222",
       }}
     />
     {value && (
@@ -2002,15 +2003,10 @@ const Settings = ({
   const [delAccId, setDelAccId] = useState(null);
   const [showPinSet, setShowPinSet] = useState(false);
 
-  const [obTemp, setObTemp] = useState(String(openingBalance));
-  const [daTemp, setDaTemp] = useState(String(declaredAmount));
-  const [goalTemp, setGoalTemp] = useState(String(goalAmount));
-  const [mcTemp, setMcTemp] = useState(String(manualCheck));
-
-  useEffect(() => setObTemp(String(openingBalance)), [openingBalance]);
-  useEffect(() => setDaTemp(String(declaredAmount)), [declaredAmount]);
-  useEffect(() => setGoalTemp(String(goalAmount)), [goalAmount]);
-  useEffect(() => setMcTemp(String(manualCheck)), [manualCheck]);
+  const [obTemp, setObTemp] = useState("");
+  const [daTemp, setDaTemp] = useState("");
+  const [goalTemp, setGoalTemp] = useState("");
+  const [mcTemp, setMcTemp] = useState("");
 
   const saveAccount = useCallback(() => {
     if (!accForm.name) {
@@ -2044,64 +2040,53 @@ const Settings = ({
     setEditAccId(account.id);
   }, []);
 
-  const menuItems = [
-    {
-      icon: "🏦",
-      title: "Manage Accounts",
-      sub: accounts.length + " account(s)",
-      key: "accounts",
-    },
-    {
-      icon: "💵",
-      title: "Opening Balance",
-      sub: openingBalance > 0 ? fmt(openingBalance) : "Not set",
-      key: "opening",
-    },
-    {
-      icon: "💼",
-      title: "Declared Total",
-      sub: declaredAmount > 0 ? fmt(declaredAmount) : "Not set",
-      key: "declared",
-    },
-    {
-      icon: "🎯",
-      title: "Savings Goal",
-      sub: goalAmount > 0 ? "Target: " + fmt(goalAmount) : "Not set",
-      key: "goal",
-    },
-    {
-      icon: "🔎",
-      title: "Manual Check",
-      sub: manualCheck > 0 ? "Your count: " + fmt(manualCheck) : "Not set",
-      key: "manual",
-    },
-    {
-      icon: "🔒",
-      title: "PIN Lock",
-      sub: pinEnabled ? "Enabled · tap to change" : "Disabled",
-      key: "pin",
-    },
-    {
-      icon: "👤",
-      title: "Profile",
-      sub: "Name, currency",
-    },
-    {
-      icon: "🔔",
-      title: "Notifications",
-      sub: "Daily reminders",
-    },
-    {
-      icon: "💾",
-      title: "Backup",
-      sub: "Export as CSV",
-    },
-    {
-      icon: "ℹ️",
-      title: "About",
-      sub: "Version 1.0.0",
-    },
-  ];
+  const toggle = (key) => setSection((s) => (s === key ? null : key));
+
+  const cardStyle = {
+    backgroundColor: "white",
+    borderRadius: "16px",
+    padding: "16px",
+    marginBottom: "10px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+  };
+
+  const menuRowStyle = {
+    backgroundColor: "white",
+    borderRadius: "16px",
+    padding: "15px 16px",
+    marginBottom: "10px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+    display: "flex",
+    gap: "14px",
+    alignItems: "center",
+    cursor: "pointer",
+  };
+
+  const menuRowStaticStyle = { ...menuRowStyle, cursor: "default" };
+
+  const iconBoxStyle = {
+    width: "44px",
+    height: "44px",
+    borderRadius: "13px",
+    backgroundColor: "#F0F4F8",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "22px",
+  };
+
+  const chevron = (key) => (
+    <div
+      style={{
+        color: "#CCC",
+        fontSize: "18px",
+        transform: section === key ? "rotate(90deg)" : "rotate(0deg)",
+        transition: "transform 0.2s",
+      }}
+    >
+      ›
+    </div>
+  );
 
   return (
     <div>
@@ -2113,13 +2098,7 @@ const Settings = ({
           color: "white",
         }}
       >
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.65,
-            letterSpacing: "1px",
-          }}
-        >
+        <div style={{ fontSize: "11px", opacity: 0.65, letterSpacing: "1px" }}>
           PREFERENCES
         </div>
         <div style={{ fontSize: "21px", fontWeight: 800 }}>Settings</div>
@@ -2127,498 +2106,247 @@ const Settings = ({
 
       {/* Menu Items */}
       <div style={{ padding: "16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
-        {menuItems.map((item) => (
-          <div key={item.title}>
-            <div
-              onClick={() => item.key && setSection(section === item.key ? null : item.key)}
-              style={{
-                backgroundColor: "white",
-                borderRadius: "16px",
-                padding: "15px 16px",
-                marginBottom: "10px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                display: "flex",
-                gap: "14px",
-                alignItems: "center",
-                cursor: item.key ? "pointer" : "default",
-              }}
-            >
-              <div
-                style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "13px",
-                  backgroundColor: "#F0F4F8",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "22px",
-                }}
-              >
-                {item.icon}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    color: "#222",
-                  }}
-                >
-                  {item.title}
-                </div>
-                <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>
-                  {item.sub}
-                </div>
-              </div>
-              {item.key && (
-                <div
-                  style={{
-                    color: "#CCC",
-                    fontSize: "18px",
-                    transform: section === item.key ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s",
-                  }}
-                >
-                  ›
-                </div>
-              )}
-            </div>
 
-            {section === item.key && (
+        {/* ACCOUNTS */}
+        <div onClick={() => toggle("accounts")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>🏦</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Manage Accounts</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{accounts.length} account(s)</div>
+          </div>
+          {chevron("accounts")}
+        </div>
+        {section === "accounts" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>My Accounts</div>
+            {accounts.map((account) => (
               <div
+                key={account.id}
                 style={{
-                  backgroundColor: "white",
-                  borderRadius: "16px",
-                  padding: "16px",
+                  backgroundColor: "#F8FAFC",
+                  borderRadius: "12px",
+                  padding: "10px 12px",
                   marginBottom: "10px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                 }}
               >
-                {item.key === "accounts" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "12px",
-                      }}
-                    >
-                      My Accounts
-                    </div>
-                    {accounts.map((account) => (
-                      <div
-                        key={account.id}
-                        style={{
-                          backgroundColor: "#F8FAFC",
-                          borderRadius: "12px",
-                          padding: "10px 12px",
-                          marginBottom: "10px",
-                          display: "flex",
-                          gap: "10px",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ fontSize: "22px" }}>{account.icon}</div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {account.name}
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#AAA" }}>
-                            {account.type} · {fmt(account.opening)}
-                          </div>
-                        </div>
-                        <FBtn
-                          outline
-                          color="#2D6A9F"
-                          onClick={() => startEditAccount(account)}
-                          style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}
-                        >
-                          Edit
-                        </FBtn>
-                        <FBtn
-                          outline
-                          color="#E53E3E"
-                          onClick={() => setDelAccId(account.id)}
-                          style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}
-                        >
-                          🗑
-                        </FBtn>
-                        {delAccId === account.id && (
-                          <div
-                            style={{
-                              backgroundColor: "#FFF5F5",
-                              border: "1px solid #FFE8E8",
-                              borderRadius: "12px",
-                              padding: "14px",
-                              marginTop: "12px",
-                              textAlign: "center",
-                              width: "100%",
-                              boxSizing: "border-box",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                color: "#E53E3E",
-                                marginBottom: "10px",
-                              }}
-                            >
-                              Delete this account?
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "#999",
-                                marginBottom: "10px",
-                              }}
-                            >
-                              This cannot be undone.
-                            </div>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                              <FBtn
-                                outline
-                                color="#999"
-                                onClick={() => setDelAccId(null)}
-                                style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                              >
-                                Cancel
-                              </FBtn>
-                              <FBtn
-                                bg="#E53E3E"
-                                onClick={() => deleteAccount(account.id)}
-                                style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                              >
-                                Delete
-                              </FBtn>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <div
-                      style={{
-                        paddingTop: "12px",
-                        borderTop: "1px solid #F0F0F0",
-                        marginTop: "12px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          color: "#555",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        {editAccId ? "Edit Account" : "Add New Account"}
-                      </div>
-                      <FInput
-                        placeholder="Account Name"
-                        value={accForm.name}
-                        onChange={(e) =>
-                          setAccForm({ ...accForm, name: e.target.value })
-                        }
-                        style={{ marginBottom: "10px" }}
-                      />
-                      <ChipRow
-                        items={ACCOUNT_TYPES}
-                        value={accForm.type}
-                        onChange={(type) =>
-                          setAccForm({
-                            ...accForm,
-                            type,
-                            icon: ACCOUNT_TYPES.find((a) => a.type === type)?.icon,
-                          })
-                        }
-                      />
-                      <FInput
-                        type="number"
-                        placeholder="Opening Balance"
-                        value={accForm.opening}
-                        onChange={(e) =>
-                          setAccForm({ ...accForm, opening: e.target.value })
-                        }
-                        style={{ marginBottom: "12px" }}
-                      />
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        {editAccId && (
-                          <FBtn
-                            outline
-                            color="#999"
-                            onClick={() => {
-                              setEditAccId(null);
-                              setAccForm({ name: "", type: "Cash", icon: "💵", opening: "" });
-                            }}
-                            style={{ flex: 1 }}
-                          >
-                            Cancel
-                          </FBtn>
-                        )}
-                        <FBtn onClick={saveAccount} style={{ flex: 1 }}>
-                          {editAccId ? "Update Account" : "Save Account"}
-                        </FBtn>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {item.key === "opening" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Opening Balance
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>
-                      A global starting amount added to your total balance on top of
-                      individual account balances.
-                    </div>
-                    <FInput
-                      type="number"
-                      value={obTemp}
-                      onChange={(e) => setObTemp(e.target.value)}
-                      style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-                    />
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <div style={{ fontSize: "22px" }}>{account.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600 }}>{account.name}</div>
+                    <div style={{ fontSize: "11px", color: "#AAA" }}>{account.type} · {fmt(account.opening)}</div>
+                  </div>
+                  <FBtn outline color="#2D6A9F" onClick={() => startEditAccount(account)} style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}>Edit</FBtn>
+                  <FBtn outline color="#E53E3E" onClick={() => setDelAccId(account.id)} style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}>🗑</FBtn>
+                </div>
+                {delAccId === account.id && (
+                  <div style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFE8E8", borderRadius: "12px", padding: "14px", marginTop: "12px", textAlign: "center" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#E53E3E", marginBottom: "10px" }}>Delete this account?</div>
+                    <div style={{ fontSize: "13px", color: "#999", marginBottom: "10px" }}>This cannot be undone.</div>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      {openingBalance > 0 && (
-                        <FBtn
-                          bg="#E53E3E"
-                          onClick={() => {
-                            setOpeningBalance(0);
-                            setObTemp("0");
-                            setSection(null);
-                          }}
-                          style={{ flex: 1 }}
-                        >
-                          Remove
-                        </FBtn>
-                      )}
-                      <FBtn
-                        onClick={() => {
-                          setOpeningBalance(parseFloat(obTemp) || 0);
-                          setSection(null);
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        Save
-                      </FBtn>
+                      <FBtn outline color="#999" onClick={() => setDelAccId(null)} style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}>Cancel</FBtn>
+                      <FBtn bg="#E53E3E" onClick={() => deleteAccount(account.id)} style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}>Delete</FBtn>
                     </div>
-                  </>
-                )}
-
-                {item.key === "declared" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Declared Total
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>
-                      Your known total wealth — savings, fixed deposits, cash at home
-                      etc. Dashboard shows the difference between this and what the app
-                      has calculated.
-                    </div>
-                    <FInput
-                      type="number"
-                      value={daTemp}
-                      onChange={(e) => setDaTemp(e.target.value)}
-                      style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-                    />
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {declaredAmount > 0 && (
-                        <FBtn
-                          bg="#E53E3E"
-                          onClick={() => {
-                            setDeclaredAmount(0);
-                            setDaTemp("0");
-                            setSection(null);
-                          }}
-                          style={{ flex: 1 }}
-                        >
-                          Remove
-                        </FBtn>
-                      )}
-                      <FBtn
-                        onClick={() => {
-                          setDeclaredAmount(parseFloat(daTemp) || 0);
-                          setSection(null);
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        Save
-                      </FBtn>
-                    </div>
-                  </>
-                )}
-
-                {item.key === "goal" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Savings Goal
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>
-                      Set a target amount you want to save. Goal tab shows a progress
-                      bar, how much is still needed, and a motivational message.
-                    </div>
-                    <FInput
-                      type="number"
-                      value={goalTemp}
-                      onChange={(e) => setGoalTemp(e.target.value)}
-                      style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-                    />
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {goalAmount > 0 && (
-                        <FBtn
-                          bg="#E53E3E"
-                          onClick={() => {
-                            setGoalAmount(0);
-                            setGoalTemp("0");
-                            setSection(null);
-                          }}
-                          style={{ flex: 1 }}
-                        >
-                          Remove
-                        </FBtn>
-                      )}
-                      <FBtn
-                        onClick={() => {
-                          setGoalAmount(parseFloat(goalTemp) || 0);
-                          setSection(null);
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        Save
-                      </FBtn>
-                    </div>
-                  </>
-                )}
-
-                {item.key === "manual" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Manual Check
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>
-                      Physically count your cash and enter it here. Dashboard compares
-                      this against the app's calculated total and tells you if you have
-                      more or less than expected.
-                    </div>
-                    <FInput
-                      type="number"
-                      value={mcTemp}
-                      onChange={(e) => setMcTemp(e.target.value)}
-                      style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-                    />
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {manualCheck > 0 && (
-                        <FBtn
-                          bg="#E53E3E"
-                          onClick={() => {
-                            setManualCheck(0);
-                            setMcTemp("0");
-                            setSection(null);
-                          }}
-                          style={{ flex: 1 }}
-                        >
-                          Remove
-                        </FBtn>
-                      )}
-                      <FBtn
-                        onClick={() => {
-                          setManualCheck(parseFloat(mcTemp) || 0);
-                          setSection(null);
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        Save
-                      </FBtn>
-                    </div>
-                  </>
-                )}
-
-                {item.key === "pin" && (
-                  <>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "14px",
-                      }}
-                    >
-                      PIN Lock
-                    </div>
-                    {pinEnabled ? (
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <FBtn
-                          outline
-                          color="#2D6A9F"
-                          onClick={() => setShowPinSet(true)}
-                          style={{ flex: 1 }}
-                        >
-                          🔄 Change PIN
-                        </FBtn>
-                        <FBtn
-                          bg="#E53E3E"
-                          onClick={() => {
-                            setPinEnabled(false);
-                            setPin("");
-                            setSection(null);
-                          }}
-                          style={{ flex: 1 }}
-                        >
-                          🔓 Disable
-                        </FBtn>
-                      </div>
-                    ) : (
-                      <FBtn onClick={() => setShowPinSet(true)}>
-                        🔒 Set PIN
-                      </FBtn>
-                    )}
-                    {showPinSet && (
-                      <PinScreen
-                        mode="set"
-                        onSuccess={(newPin) => {
-                          setPin(newPin);
-                          setPinEnabled(true);
-                          setShowPinSet(false);
-                          setSection(null);
-                        }}
-                        onCancel={() => setShowPinSet(false)}
-                      />
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
+            ))}
+            <div style={{ paddingTop: "12px", borderTop: "1px solid #F0F0F0", marginTop: "12px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#555", marginBottom: "10px" }}>
+                {editAccId ? "Edit Account" : "Add New Account"}
+              </div>
+              <FInput placeholder="Account Name" value={accForm.name} onChange={(e) => setAccForm({ ...accForm, name: e.target.value })} style={{ marginBottom: "10px" }} />
+              <ChipRow
+                items={ACCOUNT_TYPES}
+                value={accForm.type}
+                onChange={(type) => setAccForm({ ...accForm, type, icon: ACCOUNT_TYPES.find((a) => a.type === type)?.icon })}
+              />
+              <FInput type="number" placeholder="Opening Balance" value={accForm.opening} onChange={(e) => setAccForm({ ...accForm, opening: e.target.value })} style={{ marginBottom: "12px" }} />
+              <div style={{ display: "flex", gap: "8px" }}>
+                {editAccId && (
+                  <FBtn outline color="#999" onClick={() => { setEditAccId(null); setAccForm({ name: "", type: "Cash", icon: "💵", opening: "" }); }} style={{ flex: 1 }}>Cancel</FBtn>
+                )}
+                <FBtn onClick={saveAccount} style={{ flex: 1 }}>{editAccId ? "Update Account" : "Save Account"}</FBtn>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OPENING BALANCE */}
+        <div onClick={() => toggle("opening")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>💵</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Opening Balance</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{openingBalance > 0 ? fmt(openingBalance) : "Not set"}</div>
+          </div>
+          {chevron("opening")}
+        </div>
+        {section === "opening" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Opening Balance</div>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>A global starting amount added to your total balance on top of individual account balances.</div>
+            <FInput
+              type="number"
+              value={obTemp}
+              onChange={(e) => setObTemp(e.target.value)}
+              placeholder={openingBalance > 0 ? fmt(openingBalance) : "₹ 0"}
+              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              {openingBalance > 0 && (
+                <FBtn bg="#E53E3E" onClick={() => { setOpeningBalance(0); setObTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
+              )}
+              <FBtn onClick={() => { setOpeningBalance(parseFloat(obTemp) || 0); setObTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* DECLARED TOTAL */}
+        <div onClick={() => toggle("declared")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>💼</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Declared Total</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{declaredAmount > 0 ? fmt(declaredAmount) : "Not set"}</div>
+          </div>
+          {chevron("declared")}
+        </div>
+        {section === "declared" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Declared Total</div>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Your known total wealth — savings, fixed deposits, cash at home etc. Dashboard shows the difference between this and what the app has calculated.</div>
+            <FInput
+              type="number"
+              value={daTemp}
+              onChange={(e) => setDaTemp(e.target.value)}
+              placeholder={declaredAmount > 0 ? fmt(declaredAmount) : "₹ 0"}
+              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              {declaredAmount > 0 && (
+                <FBtn bg="#E53E3E" onClick={() => { setDeclaredAmount(0); setDaTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
+              )}
+              <FBtn onClick={() => { setDeclaredAmount(parseFloat(daTemp) || 0); setDaTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* SAVINGS GOAL */}
+        <div onClick={() => toggle("goal")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>🎯</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Savings Goal</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{goalAmount > 0 ? "Target: " + fmt(goalAmount) : "Not set"}</div>
+          </div>
+          {chevron("goal")}
+        </div>
+        {section === "goal" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Savings Goal</div>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Set a target amount you want to save. Goal tab shows a progress bar, how much is still needed, and a motivational message.</div>
+            <FInput
+              type="number"
+              value={goalTemp}
+              onChange={(e) => setGoalTemp(e.target.value)}
+              placeholder={goalAmount > 0 ? fmt(goalAmount) : "₹ 0"}
+              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              {goalAmount > 0 && (
+                <FBtn bg="#E53E3E" onClick={() => { setGoalAmount(0); setGoalTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
+              )}
+              <FBtn onClick={() => { setGoalAmount(parseFloat(goalTemp) || 0); setGoalTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* MANUAL CHECK */}
+        <div onClick={() => toggle("manual")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>🔎</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Manual Check</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{manualCheck > 0 ? "Your count: " + fmt(manualCheck) : "Not set"}</div>
+          </div>
+          {chevron("manual")}
+        </div>
+        {section === "manual" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Manual Check</div>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Physically count your cash and enter it here. Dashboard compares this against the app's calculated total and tells you if you have more or less than expected.</div>
+            <FInput
+              type="number"
+              value={mcTemp}
+              onChange={(e) => setMcTemp(e.target.value)}
+              placeholder={manualCheck > 0 ? fmt(manualCheck) : "₹ 0"}
+              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              {manualCheck > 0 && (
+                <FBtn bg="#E53E3E" onClick={() => { setManualCheck(0); setMcTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
+              )}
+              <FBtn onClick={() => { setManualCheck(parseFloat(mcTemp) || 0); setMcTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* PIN LOCK */}
+        <div onClick={() => toggle("pin")} style={menuRowStyle}>
+          <div style={iconBoxStyle}>🔒</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>PIN Lock</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{pinEnabled ? "Enabled · tap to change" : "Disabled"}</div>
+          </div>
+          {chevron("pin")}
+        </div>
+        {section === "pin" && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "14px" }}>PIN Lock</div>
+            {pinEnabled ? (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <FBtn outline color="#2D6A9F" onClick={() => setShowPinSet(true)} style={{ flex: 1 }}>🔄 Change PIN</FBtn>
+                <FBtn bg="#E53E3E" onClick={() => { setPinEnabled(false); setPin(""); setSection(null); }} style={{ flex: 1 }}>🔓 Disable</FBtn>
+              </div>
+            ) : (
+              <FBtn onClick={() => setShowPinSet(true)}>🔒 Set PIN</FBtn>
+            )}
+            {showPinSet && (
+              <PinScreen
+                mode="set"
+                onSuccess={(newPin) => { setPin(newPin); setPinEnabled(true); setShowPinSet(false); setSection(null); }}
+                onCancel={() => setShowPinSet(false)}
+              />
             )}
           </div>
-        ))}
+        )}
+
+        {/* NON-FUNCTIONAL rows */}
+        <div style={menuRowStaticStyle}>
+          <div style={iconBoxStyle}>👤</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Profile</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Name, currency</div>
+          </div>
+        </div>
+        <div style={menuRowStaticStyle}>
+          <div style={iconBoxStyle}>🔔</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Notifications</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Daily reminders</div>
+          </div>
+        </div>
+        <div style={menuRowStaticStyle}>
+          <div style={iconBoxStyle}>💾</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Backup</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Export as CSV</div>
+          </div>
+        </div>
+        <div style={menuRowStaticStyle}>
+          <div style={iconBoxStyle}>ℹ️</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>About</div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Version 1.2.0</div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
