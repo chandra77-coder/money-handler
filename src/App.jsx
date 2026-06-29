@@ -5,6 +5,8 @@ const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const yesterdayStr = () =>
   new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+const currentMonthYear = () =>
+  new Date().toLocaleString("en-IN", { month: "long", year: "numeric" }).toUpperCase();
 const avatarColor = (name) => {
   if (!name || name.length === 0) return "#4F7CAC";
   return [
@@ -550,7 +552,9 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
   const declaredDiff = (declaredAmount || 0) - totalTracked;
   const manualDiff = (manualCheck || 0) - totalTracked;
 
-  const recentTransactions = transactions.slice(0, 4);
+  const recentTransactions = [...transactions]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 4);
 
   return (
     <div>
@@ -578,7 +582,7 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
                 letterSpacing: "1px",
               }}
             >
-              JUNE 2026
+              {currentMonthYear()}
             </div>
             <div style={{ fontSize: "22px", fontWeight: 800 }}>My Finance</div>
           </div>
@@ -1117,6 +1121,8 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
   const [search, setSearch] = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [form, setForm] = useState(EMPTY_TX);
+  const [editId, setEditId] = useState(null);
+  const [delId, setDelId] = useState(null);
 
   const accountNames = accounts.map((acc) => acc.name);
 
@@ -1170,7 +1176,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
         return;
       }
       newTx = {
-        id: Date.now(),
+        id: editId || Date.now(),
         type: "transfer",
         category: "Transfer",
         icon: "⇄",
@@ -1189,16 +1195,21 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       const categoryIcon = TX_CATS[form.type].find(cat => cat.l === form.category)?.icon || "📦";
       newTx = {
         ...form,
-        id: Date.now(),
+        id: editId || Date.now(),
         amount: amount,
         icon: categoryIcon,
         toAccount: "",
       };
     }
-    setTransactions((prev) => [newTx, ...prev]);
+    if (editId) {
+      setTransactions((prev) => prev.map((tx) => tx.id === editId ? newTx : tx));
+    } else {
+      setTransactions((prev) => [newTx, ...prev]);
+    }
     setShowSheet(false);
+    setEditId(null);
     setForm(EMPTY_TX);
-  }, [form, setTransactions]);
+  }, [form, editId, setTransactions]);
 
   return (
     <div>
@@ -1217,7 +1228,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
             letterSpacing: "1px",
           }}
         >
-          JUNE 2026
+          {currentMonthYear()}
         </div>
         <div style={{ fontSize: "21px", fontWeight: 800, marginBottom: "14px" }}>
           Transactions
@@ -1258,19 +1269,14 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
                 }}
               >
                 {txs.map((tx, index) => (
-                  <div
-                    key={tx.id}
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      padding: "12px 0",
-                      borderBottom:
-                        index < txs.length - 1
-                          ? "1px solid #F5F5F5"
-                          : "none",
-                      alignItems: "center",
-                    }}
-                  >
+                  <div key={tx.id} style={{ borderBottom: index < txs.length - 1 ? "1px solid #F5F5F5" : "none", padding: "12px 0" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        alignItems: "center",
+                      }}
+                    >
                     <div
                       style={{
                         width: "42px",
@@ -1333,7 +1339,23 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
                       {tx.type === "transfer" && "⇄"}
                       {fmt(tx.amount)}
                     </div>
+                    <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                      <button onClick={() => { setForm({ ...tx, amount: String(tx.amount) }); setEditId(tx.id); setShowSheet(true); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", padding: "4px" }}>✏️</button>
+                      <button onClick={() => setDelId(delId === tx.id ? null : tx.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", padding: "4px" }}>🗑</button>
+                    </div>
                   </div>
+                  {delId === tx.id && (
+                    <div style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFE8E8", borderRadius: "12px", padding: "12px", marginTop: "8px", textAlign: "center" }}>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#E53E3E", marginBottom: "8px" }}>Delete this transaction?</div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <FBtn outline color="#999" onClick={() => setDelId(null)} style={{ flex: 1, padding: "8px", fontSize: "12px" }}>Cancel</FBtn>
+                        <FBtn bg="#E53E3E" onClick={() => { setTransactions(prev => prev.filter(t => t.id !== tx.id)); setDelId(null); }} style={{ flex: 1, padding: "8px", fontSize: "12px" }}>Delete</FBtn>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 ))}
               </div>
             </div>
@@ -1345,6 +1367,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       <button
         onClick={() => {
           setForm(EMPTY_TX);
+          setEditId(null);
           setShowSheet(true);
         }}
         style={{
@@ -1372,7 +1395,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
         <div style={{ padding: "0 16px" }}>
           <h3 style={{ marginTop: 0, marginBottom: "20px", fontSize: "18px", fontWeight: 700 }}>
-            Add Transaction
+            {editId ? "Edit Transaction" : "Add Transaction"}
           </h3>
           <TypeToggle
             options={[
@@ -1621,7 +1644,7 @@ const Loans = ({ loans, setLoans }) => {
             letterSpacing: "1px",
           }}
         >
-          JUNE 2026
+          {currentMonthYear()}
         </div>
         <div style={{ fontSize: "21px", fontWeight: 800, marginBottom: "14px" }}>Loans</div>
 
