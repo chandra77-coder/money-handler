@@ -1105,7 +1105,7 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
 };
 
 // 10. EMPTY_TX constant + Transactions component
-const EMPTY_TX = {
+const EMPTY_TX = () => ({
   type: "expense",
   category: "",
   icon: "📦",
@@ -1115,12 +1115,12 @@ const EMPTY_TX = {
   account: "",
   toAccount: "",
   method: "",
-};
+});
 
 const Transactions = ({ transactions, setTransactions, accounts }) => {
   const [search, setSearch] = useState("");
   const [showSheet, setShowSheet] = useState(false);
-  const [form, setForm] = useState(EMPTY_TX);
+  const [form, setForm] = useState(EMPTY_TX());
   const [editId, setEditId] = useState(null);
   const [delId, setDelId] = useState(null);
 
@@ -1132,7 +1132,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
     if (value.trim().toLowerCase() === "create") {
       setTimeout(() => {
         setSearch("");
-        setForm(EMPTY_TX);
+        setForm(EMPTY_TX());
         setShowSheet(true);
       }, 200);
     }
@@ -1152,7 +1152,8 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
   }, [transactions, search]);
 
   const groupedTransactions = useMemo(() => {
-    return filteredTransactions.reduce((acc, tx) => {
+    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    return sorted.reduce((acc, tx) => {
       const dateLabel = tx.date === todayStr() ? "Today" : tx.date === yesterdayStr() ? "Yesterday" : tx.date;
       if (!acc[dateLabel]) {
         acc[dateLabel] = [];
@@ -1208,7 +1209,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
     }
     setShowSheet(false);
     setEditId(null);
-    setForm(EMPTY_TX);
+    setForm(EMPTY_TX());
   }, [form, editId, setTransactions]);
 
   return (
@@ -1366,7 +1367,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       {/* FAB */}
       <button
         onClick={() => {
-          setForm(EMPTY_TX);
+          setForm(EMPTY_TX());
           setEditId(null);
           setShowSheet(true);
         }}
@@ -1404,7 +1405,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
               ["transfer", "⇄ Transfer"],
             ]}
             value={form.type}
-            onChange={(type) => setForm({ ...EMPTY_TX, type })}
+            onChange={(type) => setForm({ ...EMPTY_TX(), type })}
             colors={{
               expense: "#E53E3E",
               income: "#1DB954",
@@ -1774,7 +1775,7 @@ const Loans = ({ loans, setLoans }) => {
                     justifyContent: "center",
                   }}
                 >
-                  {loan.name[0]}
+                  {(loan.name || "?")[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div
