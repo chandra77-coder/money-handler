@@ -1,31 +1,18 @@
-/* Basic styles */
+/* MoneyMate Premium UI */
 body {
   margin: 0;
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: "Manrope", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #F8FAFC;
+  background-color: #0D1F2D;
 }
 
-/* Custom scrollbar for Webkit browsers */
-::-webkit-scrollbar {
-  width: 6px;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(46,196,182,0.3); border-radius: 4px; }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* Reset button styles */
+/* Button resets */
 button {
   border: none;
   margin: 0;
@@ -39,10 +26,9 @@ button {
   -webkit-font-smoothing: inherit;
   -moz-osx-font-smoothing: inherit;
   -webkit-appearance: none;
+  cursor: pointer;
 }
+button::-moz-focus-inner { border: 0; padding: 0; }
 
-/* Remove extra padding in Firefox */
-button::-moz-focus-inner {
-  border: 0;
-  padding: 0;
-}
+/* Date input styling */
+input[type="date"] { color-scheme: light; }

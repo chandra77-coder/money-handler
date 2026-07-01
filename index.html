@@ -4,23 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MoneyMate - Personal Finance Tracker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet" />
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
     body {
-      font-family: "Inter", system-ui, sans-serif;
-      background-color: #F0F4F8;
+      font-family: "Manrope", system-ui, sans-serif;
+      background-color: #0D1F2D;
       color: #1E3A5F;
+      overscroll-behavior: none;
     }
     #root {
       width: 100%;
       max-width: 420px;
       margin: 0 auto;
       min-height: 100vh;
+    }
+    .mm-btn {
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    }
+    .mm-btn:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+    .mm-chip {
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .mm-nav-tab {
+      transition: color 0.15s ease;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input:focus {
+      outline: none;
+      border-color: #2EC4B6 !important;
+      box-shadow: 0 0 0 3px rgba(46,196,182,0.15) !important;
+    }
+    .mm-glass {
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.15);
     }
   </style>
 </head>

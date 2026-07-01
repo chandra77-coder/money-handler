@@ -1,5 +1,47 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 
+// THEME — single source of truth for all design tokens
+const T = {
+  // Gradients
+  headerGrad: "linear-gradient(160deg, #0D2137 0%, #0F3460 50%, #0A4D68 100%)",
+  btnGrad: "linear-gradient(135deg, #2EC4B6 0%, #0A9396 100%)",
+  btnGradGold: "linear-gradient(135deg, #F4A261 0%, #E76F51 100%)",
+  btnGradRed: "linear-gradient(135deg, #E63946 0%, #C1121F 100%)",
+  btnGradGreen: "linear-gradient(135deg, #2DC653 0%, #1DB954 100%)",
+  btnGradGray: "linear-gradient(135deg, #8D99AE 0%, #6C757D 100%)",
+  achieveGrad: "linear-gradient(135deg, #1DB954 0%, #0E9E46 100%)",
+  // Colors
+  teal: "#2EC4B6",
+  tealDark: "#0A9396",
+  gold: "#F4A261",
+  red: "#E63946",
+  green: "#2DC653",
+  navy: "#0D2137",
+  navyMid: "#0F3460",
+  surface: "#F0F6F8",
+  surfaceCard: "#FFFFFF",
+  textPrimary: "#0D2137",
+  textSecondary: "#6B7F96",
+  textMuted: "#B0BEC5",
+  border: "#E2EBF0",
+  // Shadows
+  shadowCard: "0 4px 20px rgba(13,33,55,0.08)",
+  shadowBtn: "0 4px 14px rgba(46,196,182,0.35)",
+  shadowBtnRed: "0 4px 14px rgba(230,57,70,0.35)",
+  shadowBtnGold: "0 4px 14px rgba(244,162,97,0.35)",
+  shadowBtnGreen: "0 4px 14px rgba(45,198,83,0.35)",
+  shadowNav: "0 -4px 20px rgba(13,33,55,0.10)",
+  // Radius
+  r12: "12px",
+  r16: "16px",
+  r20: "20px",
+  r24: "24px",
+  // Glass
+  glass: "rgba(255,255,255,0.10)",
+  glassBorder: "rgba(255,255,255,0.18)",
+  glassDark: "rgba(13,33,55,0.35)",
+};
+
 // 2. fmt, todayStr, yesterdayStr, avatarColor helpers
 const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -94,38 +136,30 @@ const Sheet = ({ children, show, onClose }) => {
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: "rgba(13,33,55,0.65)",
         zIndex: 300,
         display: "flex",
         alignItems: "flex-end",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          backgroundColor: "white",
-          borderRadius: "24px 24px 0 0",
-          padding: "20px 18px 48px",
+          backgroundColor: "#FFFFFF",
+          borderRadius: "28px 28px 0 0",
+          padding: "20px 20px 52px",
           maxHeight: "92vh",
           overflowY: "auto",
           width: "100%",
           boxSizing: "border-box",
+          boxShadow: "0 -8px 40px rgba(13,33,55,0.18)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            width: "40px",
-            height: "4px",
-            backgroundColor: "#DDD",
-            borderRadius: "2px",
-            margin: "auto auto 18px",
-          }}
-        ></div>
+        <div style={{ width: "36px", height: "4px", backgroundColor: T.border, borderRadius: "4px", margin: "0 auto 20px" }} />
         {children}
       </div>
     </div>
@@ -140,32 +174,39 @@ const FInput = ({ value, onChange, placeholder, type = "text", style }) => (
     type={type}
     style={{
       width: "100%",
-      padding: "12px 14px",
-      borderRadius: "12px",
-      border: "1.5px solid #E8EDF3",
+      padding: "13px 16px",
+      borderRadius: T.r16,
+      border: `1.5px solid ${T.border}`,
       outline: "none",
       fontFamily: "inherit",
+      fontSize: "14px",
+      color: T.textPrimary,
+      backgroundColor: T.surface,
       boxSizing: "border-box",
+      transition: "border-color 0.15s, box-shadow 0.15s",
       ...style,
     }}
   />
 );
 
-const FBtn = ({ outline, bg, color = "#1E3A5F", style, onClick, children }) => (
+const FBtn = ({ outline, bg, color = T.navy, style, onClick, children }) => (
   <button
+    className="mm-btn"
     onClick={onClick}
     style={{
       fontFamily: "inherit",
       fontWeight: 700,
       fontSize: "14px",
-      borderRadius: "12px",
+      borderRadius: T.r16,
       cursor: "pointer",
       border: outline ? `1.5px solid ${color}` : "none",
-      background: outline ? "white" : bg || "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
+      background: outline ? "white" : bg || T.btnGrad,
       color: outline ? color : "white",
-      padding: "12px 14px",
+      padding: "13px 16px",
       width: "100%",
       boxSizing: "border-box",
+      boxShadow: outline ? "none" : T.shadowBtn,
+      letterSpacing: "0.2px",
       ...style,
     }}
   >
@@ -175,82 +216,51 @@ const FBtn = ({ outline, bg, color = "#1E3A5F", style, onClick, children }) => (
 
 const SearchBar = ({ value, onChange, onClear }) => (
   <div style={{ position: "relative", margin: "0 16px 12px" }}>
-    <span
-      style={{
-        position: "absolute",
-        left: "12px",
-        top: "50%",
-        transform: "translateY(-50%)",
-        color: "#999",
-      }}
-    >
-      🔍
-    </span>
+    <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: T.textSecondary, fontSize: "15px" }}>🔍</span>
     <input
       value={value}
       onChange={onChange}
       placeholder="Search..."
       style={{
         width: "100%",
-        padding: "11px 36px",
-        borderRadius: "14px",
+        padding: "12px 38px",
+        borderRadius: T.r20,
         border: "none",
-        fontSize: "13px",
-        backgroundColor: "rgba(255,255,255,0.95)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        fontSize: "14px",
+        backgroundColor: "rgba(255,255,255,0.97)",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
         boxSizing: "border-box",
         fontFamily: "inherit",
         outline: "none",
-        color: "#222",
+        color: T.textPrimary,
+        fontWeight: 500,
       }}
     />
     {value && (
-      <span
-        onClick={onClear}
-        style={{
-          position: "absolute",
-          right: "12px",
-          top: "50%",
-          transform: "translateY(-50%)",
-          cursor: "pointer",
-          color: "#999",
-        }}
-      >
-        ✕
-      </span>
+      <span onClick={onClear} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: T.textSecondary, fontSize: "14px" }}>✕</span>
     )}
   </div>
 );
 
 const TypeToggle = ({ options, value, onChange, colors = {} }) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "row",
-      backgroundColor: "#F0F4F8",
-      borderRadius: "12px",
-      padding: "3px",
-      gap: "3px",
-      marginBottom: "14px",
-    }}
-  >
+  <div style={{ display: "flex", flexDirection: "row", backgroundColor: T.surface, borderRadius: T.r16, padding: "4px", gap: "4px", marginBottom: "16px" }}>
     {options.map(([optValue, label]) => (
       <div
         key={optValue}
+        className="mm-chip"
         onClick={() => onChange(optValue)}
         style={{
           flex: 1,
-          borderRadius: "10px",
-          padding: "10px 4px",
+          borderRadius: "12px",
+          padding: "11px 4px",
           fontWeight: 700,
           fontSize: "12px",
           textAlign: "center",
           cursor: "pointer",
-          background:
-            value === optValue
-              ? colors[optValue] || "linear-gradient(135deg,#2D6A9F,#1E3A5F)"
-              : "transparent",
-          color: value === optValue ? "white" : "#999",
+          background: value === optValue ? (colors[optValue] || T.btnGrad) : "transparent",
+          color: value === optValue ? "white" : T.textSecondary,
+          boxShadow: value === optValue ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+          letterSpacing: "0.2px",
         }}
       >
         {label}
@@ -260,53 +270,35 @@ const TypeToggle = ({ options, value, onChange, colors = {} }) => (
 );
 
 const Label = ({ children, style }) => (
-  <div
-    style={{
-      fontSize: "11px",
-      color: "#999",
-      fontWeight: 700,
-      letterSpacing: "0.5px",
-      marginBottom: "6px",
-      ...style,
-    }}
-  >
+  <div style={{ fontSize: "11px", color: T.textSecondary, fontWeight: 700, letterSpacing: "0.8px", marginBottom: "7px", textTransform: "uppercase", ...style }}>
     {children}
   </div>
 );
 
 const ChipRow = ({ items, value, onChange, activeColor, activeBg }) => (
-  <div
-    style={{
-      display: "flex",
-      flexWrap: "wrap",
-      gap: "6px",
-      marginBottom: "12px",
-    }}
-  >
+  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginBottom: "14px" }}>
     {items.map((item) => {
       const itemValue = typeof item === "string" ? item : item.l;
       const isActive = value === itemValue;
       return (
         <div
           key={itemValue}
+          className="mm-chip"
           onClick={() => onChange(itemValue)}
           style={{
-            padding: "7px 12px",
+            padding: "8px 14px",
             borderRadius: "20px",
-            border: `1.5px solid ${
-              isActive ? activeColor || "#1E3A5F" : "#E8EDF3"
-            }`,
+            border: `1.5px solid ${isActive ? activeColor || T.teal : T.border}`,
             cursor: "pointer",
             fontFamily: "inherit",
             fontSize: "12px",
             fontWeight: 600,
-            backgroundColor:
-              isActive ? activeBg || "#EEF4FB" : "white",
-            color:
-              isActive ? activeColor || "#1E3A5F" : "#888",
+            backgroundColor: isActive ? activeBg || "rgba(46,196,182,0.1)" : "white",
+            color: isActive ? activeColor || T.teal : T.textSecondary,
             display: "flex",
             alignItems: "center",
-            gap: "4px",
+            gap: "5px",
+            boxShadow: isActive ? `0 2px 8px rgba(0,0,0,0.08)` : "none",
           }}
         >
           {item.icon && <span>{item.icon}</span>}
@@ -382,117 +374,29 @@ const PinScreen = ({ mode, savedPin, onSuccess, onCancel }) => {
   const subtitleText = step === "enter" ? "Choose a 4-digit PIN to secure your app." : step === "confirm" ? "Re-enter your PIN to confirm." : "Please enter your 4-digit PIN to unlock.";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 999,
-        background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "white",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
-    >
-      <div style={{ fontSize: "44px", marginBottom: "16px" }}>🔒</div>
-      <div style={{ fontSize: "20px", fontWeight: 800 }}>{titleText}</div>
-      <div
-        style={{
-          fontSize: "13px",
-          opacity: 0.7,
-          padding: "0 40px",
-          textAlign: "center",
-          marginBottom: "32px",
-        }}
-      >
-        {subtitleText}
-      </div>
-      <div style={{ display: "flex", gap: "14px", marginBottom: "24px" }}>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: T.headerGrad, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "white", fontFamily: "Manrope, system-ui, sans-serif" }}>
+      <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔒</div>
+      <div style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.5px" }}>{titleText}</div>
+      <div style={{ fontSize: "13px", opacity: 0.65, padding: "8px 40px 28px", textAlign: "center", lineHeight: 1.5 }}>{subtitleText}</div>
+      <div style={{ display: "flex", gap: "16px", marginBottom: "20px" }}>
         {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            style={{
-              width: "16px",
-              height: "16px",
-              borderRadius: "50%",
-              backgroundColor:
-                digits.length > i
-                  ? "white"
-                  : "rgba(255,255,255,0.3)",
-              transition: "background 0.15s",
-            }}
-          ></div>
+          <div key={i} style={{ width: "14px", height: "14px", borderRadius: "50%", backgroundColor: digits.length > i ? T.teal : "rgba(255,255,255,0.25)", transition: "background 0.15s, transform 0.1s", transform: digits.length > i ? "scale(1.2)" : "scale(1)" }} />
         ))}
       </div>
-      <div style={{ height: "24px", marginBottom: "16px" }}>
-        {error && (
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#FF9E9E",
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </div>
-        )}
+      <div style={{ height: "22px", marginBottom: "14px" }}>
+        {error && <div style={{ fontSize: "12px", color: "#FF9E9E", textAlign: "center" }}>{error}</div>}
       </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3,72px)",
-          gap: "14px",
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,74px)", gap: "14px" }}>
         {keypad.map((key, index) =>
-          key === "" ? (
-            <div key={index}></div>
-          ) : (
-            <button
-              key={key}
-              onClick={() => (key === "⌫" ? handleDelete() : handleTap(key))}
-              style={{
-                width: "72px",
-                height: "72px",
-                borderRadius: "50%",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor:
-                  key === "⌫"
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(255,255,255,0.15)",
-                color: "white",
-                fontSize: key === "⌫" ? "20px" : "24px",
-                fontWeight: 700,
-                fontFamily: "inherit",
-              }}
-            >
-              {key}
-            </button>
+          key === "" ? <div key={index} /> : (
+            <button key={key} className="mm-btn" onClick={() => key === "⌫" ? handleDelete() : handleTap(key)}
+              style={{ width: "74px", height: "74px", borderRadius: "50%", border: "none", cursor: "pointer", backgroundColor: key === "⌫" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.12)", color: "white", fontSize: key === "⌫" ? "20px" : "24px", fontWeight: 700, fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,0,0,0.15)" }}
+            >{key}</button>
           )
         )}
       </div>
       {onCancel && (
-        <button
-          onClick={onCancel}
-          style={{
-            marginTop: "28px",
-            backgroundColor: "transparent",
-            border: "none",
-            color: "white",
-            fontSize: "14px",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            opacity: 0.8,
-          }}
-        >
-          Cancel
-        </button>
+        <button onClick={onCancel} style={{ marginTop: "32px", backgroundColor: "transparent", border: "none", color: "white", fontSize: "14px", cursor: "pointer", fontFamily: "inherit", opacity: 0.65, letterSpacing: "0.3px" }}>Cancel</button>
       )}
     </div>
   );
@@ -557,233 +461,70 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
     .slice(0, 4);
 
   return (
-    <div>
+    <div style={{ backgroundColor: T.surface, minHeight: "100vh" }}>
       {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-          padding: "28px 20px 72px",
-          color: "white",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+      <div style={{ background: T.headerGrad, padding: "32px 20px 76px", color: "white", borderRadius: "0 0 32px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div
-              style={{
-                fontSize: "11px",
-                opacity: 0.65,
-                letterSpacing: "1px",
-              }}
-            >
-              {currentMonthYear()}
-            </div>
-            <div style={{ fontSize: "22px", fontWeight: 800 }}>My Finance</div>
+            <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
+            <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px" }}>My Finance</div>
           </div>
-          <div
-            style={{
-              width: "38px",
-              height: "38px",
-              borderRadius: "50%",
-              backgroundColor: "rgba(255,255,255,0.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            👤
-          </div>
+          <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: T.glass, border: `1px solid ${T.glassBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>👤</div>
         </div>
 
-        {/* Balance Card */}
-        <div
-          style={{
-            backgroundColor: "rgba(255,255,255,0.13)",
-            borderRadius: "20px",
-            padding: "18px 20px",
-            border: "1px solid rgba(255,255,255,0.18)",
-            marginTop: "20px",
-          }}
-        >
-          <div style={{ fontSize: "12px", opacity: 0.7, marginBottom: "4px" }}>
-            Total Available
-          </div>
-          <div
-            style={{
-              fontSize: "36px",
-              fontWeight: 800,
-              letterSpacing: "-1px",
-              color: totalTracked >= 0 ? "#7EFFC5" : "#FF9E9E",
-            }}
-          >
+        {/* Balance Card — glassmorphism */}
+        <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, marginTop: "22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+          <div style={{ fontSize: "11px", opacity: 0.6, letterSpacing: "1px", fontWeight: 600, marginBottom: "6px" }}>TOTAL AVAILABLE</div>
+          <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: "40px", fontWeight: 800, letterSpacing: "-1.5px", color: totalTracked >= 0 ? "#7EFFC5" : "#FF9E9E", lineHeight: 1 }}>
             {fmt(totalTracked)}
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              marginTop: "16px",
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                borderRight: "1px solid rgba(255,255,255,0.2)",
-                paddingRight: "14px",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: 0.7 }}>↑ INCOME</div>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "#1DB954" }}>
-                {fmt(totalIncome)}
-              </div>
+          <div style={{ display: "flex", marginTop: "18px", gap: "0" }}>
+            <div style={{ flex: 1, borderRight: "1px solid rgba(255,255,255,0.15)", paddingRight: "16px" }}>
+              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>↑ INCOME</div>
+              <div style={{ fontSize: "16px", fontWeight: 800, color: "#5EE89A", marginTop: "3px" }}>{fmt(totalIncome)}</div>
             </div>
-            <div style={{ flex: 1, paddingLeft: "14px" }}>
-              <div style={{ fontSize: "12px", opacity: 0.7 }}>↓ EXPENSE</div>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "#E53E3E" }}>
-                {fmt(totalExpense)}
-              </div>
+            <div style={{ flex: 1, paddingLeft: "16px" }}>
+              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>↓ EXPENSE</div>
+              <div style={{ fontSize: "16px", fontWeight: 800, color: "#FF8A8A", marginTop: "3px" }}>{fmt(totalExpense)}</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: "0 16px", marginTop: "-36px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+      <div style={{ padding: "0 16px", marginTop: "-40px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
         {/* Accounts card */}
         {accounts.length > 0 && (
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "18px",
-              padding: "16px",
-              marginBottom: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                marginBottom: "12px",
-              }}
-            >
-              🏦 My Accounts
-            </div>
+          <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: T.textPrimary, marginBottom: "14px", letterSpacing: "0.2px" }}>🏦 My Accounts</div>
             {accountBalances.map((account) => (
-              <div
-                key={account.id}
-                style={{
-                  display: "flex",
-                  flexDirection: "row",
-                  gap: "12px",
-                  marginBottom: "10px",
-                  alignItems: "center",
-                }}
-              >
-                <div
-                  style={{
-                    width: "38px",
-                    height: "38px",
-                    borderRadius: "11px",
-                    backgroundColor: "#F0F4F8",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "20px",
-                  }}
-                >
-                  {account.icon}
-                </div>
+              <div key={account.id} style={{ display: "flex", gap: "12px", marginBottom: "12px", alignItems: "center" }}>
+                <div style={{ width: "40px", height: "40px", borderRadius: "13px", backgroundColor: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>{account.icon}</div>
                 <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: "#222",
-                    }}
-                  >
-                    {account.name}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#AAA" }}>
-                    {account.type}
-                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: T.textPrimary }}>{account.name}</div>
+                  <div style={{ fontSize: "11px", color: T.textMuted, marginTop: "1px" }}>{account.type}</div>
                 </div>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 800,
-                    color: account.balance >= 0 ? "#1E3A5F" : "#E53E3E",
-                  }}
-                >
-                  {fmt(account.balance)}
-                </div>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: account.balance >= 0 ? T.tealDark : T.red }}>{fmt(account.balance)}</div>
               </div>
             ))}
           </div>
         )}
 
         {/* Loan Snapshot */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            gap: "10px",
-            marginBottom: "14px",
-          }}
-        >
-          <div
-            style={{
-              flex: 1,
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              borderTop: "3px solid #1DB954",
-            }}
-          >
-            <div style={{ fontSize: "11px", color: "#999", marginBottom: "4px" }}>
-              🟢 They owe me
-            </div>
-            <div style={{ fontSize: "17px", fontWeight: 800, color: "#1DB954" }}>
-              {fmt(pendingGave)}
-            </div>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
+          <div style={{ flex: 1, backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", boxShadow: T.shadowCard, borderTop: `3px solid ${T.green}` }}>
+            <div style={{ fontSize: "11px", color: T.textSecondary, marginBottom: "5px", fontWeight: 600 }}>🟢 They owe me</div>
+            <div style={{ fontSize: "18px", fontWeight: 800, color: T.green }}>{fmt(pendingGave)}</div>
           </div>
-          <div
-            style={{
-              flex: 1,
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              borderTop: "3px solid #E53E3E",
-            }}
-          >
-            <div style={{ fontSize: "11px", color: "#999", marginBottom: "4px" }}>
-              🔴 I owe them
-            </div>
-            <div style={{ fontSize: "17px", fontWeight: 800, color: "#E53E3E" }}>
-              {fmt(pendingTook)}
-            </div>
+          <div style={{ flex: 1, backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", boxShadow: T.shadowCard, borderTop: `3px solid ${T.red}` }}>
+            <div style={{ fontSize: "11px", color: T.textSecondary, marginBottom: "5px", fontWeight: 600 }}>🔴 I owe them</div>
+            <div style={{ fontSize: "18px", fontWeight: 800, color: T.red }}>{fmt(pendingTook)}</div>
           </div>
         </div>
 
         {/* Wealth Overview card */}
         {declaredAmount > 0 && (
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "18px",
-              padding: "16px",
-              marginBottom: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            }}
-          >
+          <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
             <div
               style={{
                 fontSize: "13px",
@@ -880,11 +621,11 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
         {manualCheck > 0 && (
           <div
             style={{
-              backgroundColor: "white",
-              borderRadius: "18px",
-              padding: "16px",
+              backgroundColor: T.surfaceCard,
+              borderRadius: T.r20,
+              padding: "18px",
               marginBottom: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              boxShadow: T.shadowCard,
               borderTop:
                 manualDiff === 0
                   ? "3px solid #1DB954"
@@ -1000,15 +741,7 @@ const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck 
         )}
 
         {/* Recent Transactions */}
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "18px",
-            padding: "16px",
-            marginBottom: "80px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-          }}
-        >
+        <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "80px", boxShadow: T.shadowCard }}>
           <div
             style={{
               fontSize: "13px",
@@ -1215,34 +948,14 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-          padding: "28px 20px 20px",
-          color: "white",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.65,
-            letterSpacing: "1px",
-          }}
-        >
-          {currentMonthYear()}
-        </div>
-        <div style={{ fontSize: "21px", fontWeight: 800, marginBottom: "14px" }}>
-          Transactions
-        </div>
-        <SearchBar
-          value={search}
-          onChange={handleSearch}
-          onClear={() => setSearch("")}
-        />
+      <div style={{ background: T.headerGrad, padding: "32px 20px 20px", color: "white", borderRadius: "0 0 28px 28px" }}>
+        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
+        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "16px" }}>Transactions</div>
+        <SearchBar value={search} onChange={handleSearch} onClear={() => setSearch("")} />
       </div>
 
       {/* List area */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
         {Object.keys(groupedTransactions).length === 0 ? (
           <div style={{ textAlign: "center", color: "#CCC", padding: "40px 0" }}>
             {search ? "🔍 No results found" : "No transactions yet"}
@@ -1261,14 +974,7 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
               >
                 {dateLabel}
               </div>
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "18px",
-                  padding: "4px 14px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                }}
-              >
+              <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "4px 14px", boxShadow: T.shadowCard }}>
                 {txs.map((tx, index) => (
                   <div key={tx.id} style={{ borderBottom: index < txs.length - 1 ? "1px solid #F5F5F5" : "none", padding: "12px 0" }}>
                     <div
@@ -1365,32 +1071,9 @@ const Transactions = ({ transactions, setTransactions, accounts }) => {
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => {
-          setForm(EMPTY_TX());
-          setEditId(null);
-          setShowSheet(true);
-        }}
-        style={{
-          position: "fixed",
-          bottom: "90px",
-          right: `calc(50% - 210px + 16px)`,
-          width: "56px",
-          height: "56px",
-          borderRadius: "50%",
-          background: "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
-          color: "white",
-          fontSize: "28px",
-          border: "none",
-          boxShadow: "0 4px 20px rgba(30,58,95,0.4)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-        }}
-      >
-        +
-      </button>
+      <button className="mm-btn" onClick={() => { setForm(EMPTY_TX()); setEditId(null); setShowSheet(true); }}
+        style={{ position: "fixed", bottom: "90px", right: "calc(50% - 210px + 16px)", width: "58px", height: "58px", borderRadius: "50%", background: T.btnGrad, color: "white", fontSize: "30px", border: "none", boxShadow: `0 6px 22px rgba(46,196,182,0.45)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 300 }}
+      >+</button>
 
       {/* Add Transaction Sheet */}
       <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
@@ -1631,89 +1314,33 @@ const Loans = ({ loans, setLoans }) => {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-          padding: "28px 20px 20px",
-          color: "white",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.65,
-            letterSpacing: "1px",
-          }}
-        >
-          {currentMonthYear()}
-        </div>
-        <div style={{ fontSize: "21px", fontWeight: 800, marginBottom: "14px" }}>Loans</div>
+      <div style={{ background: T.headerGrad, padding: "32px 20px 20px", color: "white", borderRadius: "0 0 28px 28px" }}>
+        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
+        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "16px" }}>Loans</div>
 
         {/* Net Position Card */}
-        <div
-          style={{
-            backgroundColor: "rgba(255,255,255,0.13)",
-            borderRadius: "18px",
-            padding: "14px 18px",
-            border: "1px solid rgba(255,255,255,0.18)",
-            marginBottom: "14px",
-          }}
-        >
-          <div style={{ fontSize: "11px", opacity: 0.7 }}>NET POSITION</div>
-          <div
-            style={{
-              fontSize: "28px",
-              fontWeight: 800,
-              letterSpacing: "-1px",
-              color: net >= 0 ? "#7EFFC5" : "#FF9E9E",
-            }}
-          >
-            {net >= 0 && "+"}{fmt(net)}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              gap: "20px",
-              marginTop: "10px",
-            }}
-          >
+        <div style={{ background: T.glass, borderRadius: T.r20, padding: "16px 20px", border: `1px solid ${T.glassBorder}`, marginBottom: "14px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+          <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>NET POSITION</div>
+          <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: "30px", fontWeight: 800, letterSpacing: "-1px", color: net >= 0 ? "#7EFFC5" : "#FF9E9E", marginTop: "4px" }}>{net >= 0 && "+"}{fmt(net)}</div>
+          <div style={{ display: "flex", gap: "24px", marginTop: "12px" }}>
             <div>
-              <div style={{ fontSize: "12px", opacity: 0.7 }}>🔴 I OWE</div>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "#E53E3E" }}>
-                {fmt(totalTook)}
-              </div>
+              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>🔴 I OWE</div>
+              <div style={{ fontSize: "16px", fontWeight: 800, color: "#FF8A8A", marginTop: "2px" }}>{fmt(totalTook)}</div>
             </div>
             <div>
-              <div style={{ fontSize: "12px", opacity: 0.7 }}>🟢 THEY OWE</div>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "#1DB954" }}>
-                {fmt(totalGave)}
-              </div>
+              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>🟢 THEY OWE</div>
+              <div style={{ fontSize: "16px", fontWeight: 800, color: "#5EE89A", marginTop: "2px" }}>{fmt(totalGave)}</div>
             </div>
           </div>
         </div>
 
-        <SearchBar
-          value={search}
-          onChange={handleSearch}
-          onClear={() => setSearch("")}
-        />
+        <SearchBar value={search} onChange={handleSearch} onClear={() => setSearch("")} />
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
         {/* Filter tabs */}
-        <div
-          style={{
-            display: "flex",
-            backgroundColor: "white",
-            borderRadius: "14px",
-            padding: "4px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            gap: "4px",
-            marginBottom: "14px",
-          }}
-        >
+        <div style={{ display: "flex", backgroundColor: T.surfaceCard, borderRadius: T.r16, padding: "4px", boxShadow: T.shadowCard, gap: "4px", marginBottom: "14px" }}>
           {[["all", "All"], ["took", "🔴 I Took"], ["gave", "🟢 I Gave"]].map(
             ([filterValue, label]) => (
               <button
@@ -1747,19 +1374,7 @@ const Loans = ({ loans, setLoans }) => {
           </div>
         ) : (
           visibleLoans.map((loan) => (
-            <div
-              key={loan.id}
-              style={{
-                backgroundColor: "white",
-                borderRadius: "18px",
-                padding: "14px 16px",
-                marginBottom: "12px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                borderLeft:
-                  loan.type === "took" ? "4px solid #E53E3E" : "4px solid #1DB954",
-                opacity: loan.status === "returned" ? 0.65 : 1,
-              }}
-            >
+            <div key={loan.id} style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", marginBottom: "12px", boxShadow: T.shadowCard, borderLeft: loan.type === "took" ? `4px solid ${T.red}` : `4px solid ${T.green}`, opacity: loan.status === "returned" ? 0.6 : 1 }}>
               <div style={{ display: "flex", gap: "12px" }}>
                 <div
                   style={{
@@ -1923,32 +1538,9 @@ const Loans = ({ loans, setLoans }) => {
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => {
-          setForm(EMPTY_LOAN);
-          setEditId(null);
-          setShowSheet(true);
-        }}
-        style={{
-          position: "fixed",
-          bottom: "90px",
-          right: `calc(50% - 210px + 16px)`,
-          width: "56px",
-          height: "56px",
-          borderRadius: "50%",
-          background: "linear-gradient(135deg,#2D6A9F,#1E3A5F)",
-          color: "white",
-          fontSize: "28px",
-          border: "none",
-          boxShadow: "0 4px 20px rgba(30,58,95,0.4)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-        }}
-      >
-        +
-      </button>
+      <button className="mm-btn" onClick={() => { setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); }}
+        style={{ position: "fixed", bottom: "90px", right: "calc(50% - 210px + 16px)", width: "58px", height: "58px", borderRadius: "50%", background: T.btnGrad, color: "white", fontSize: "30px", border: "none", boxShadow: `0 6px 22px rgba(46,196,182,0.45)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 300 }}
+      >+</button>
 
       {/* Add/Edit Loan Sheet */}
       <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
@@ -2088,19 +1680,19 @@ const Settings = ({
   const toggle = (key) => setSection((s) => (s === key ? null : key));
 
   const cardStyle = {
-    backgroundColor: "white",
-    borderRadius: "16px",
-    padding: "16px",
+    backgroundColor: T.surfaceCard,
+    borderRadius: T.r20,
+    padding: "18px",
     marginBottom: "10px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+    boxShadow: T.shadowCard,
   };
 
   const menuRowStyle = {
-    backgroundColor: "white",
-    borderRadius: "16px",
+    backgroundColor: T.surfaceCard,
+    borderRadius: T.r20,
     padding: "15px 16px",
     marginBottom: "10px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+    boxShadow: T.shadowCard,
     display: "flex",
     gap: "14px",
     alignItems: "center",
@@ -2113,7 +1705,7 @@ const Settings = ({
     width: "44px",
     height: "44px",
     borderRadius: "13px",
-    backgroundColor: "#F0F4F8",
+    backgroundColor: T.surface,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2136,21 +1728,13 @@ const Settings = ({
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-          padding: "28px 20px",
-          color: "white",
-        }}
-      >
-        <div style={{ fontSize: "11px", opacity: 0.65, letterSpacing: "1px" }}>
-          PREFERENCES
-        </div>
-        <div style={{ fontSize: "21px", fontWeight: 800 }}>Settings</div>
+      <div style={{ background: T.headerGrad, padding: "32px 20px 28px", color: "white", borderRadius: "0 0 28px 28px" }}>
+        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>PREFERENCES</div>
+        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px" }}>Settings</div>
       </div>
 
       {/* Menu Items */}
-      <div style={{ padding: "16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+      <div style={{ padding: "16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
 
         {/* ACCOUNTS */}
         <div onClick={() => toggle("accounts")} style={menuRowStyle}>
@@ -2400,33 +1984,12 @@ const Goal = ({ transactions, accounts, goalAmount }) => {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1E3A5F,#2D6A9F)",
-          padding: "28px 20px 80px",
-          color: "white",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.65,
-            letterSpacing: "1px",
-          }}
-        >
-          SAVINGS
-        </div>
-        <div style={{ fontSize: "22px", fontWeight: 800, marginBottom: "22px" }}>My Goal</div>
+      <div style={{ background: T.headerGrad, padding: "32px 20px 80px", color: "white", borderRadius: "0 0 32px 32px" }}>
+        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>SAVINGS</div>
+        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "22px" }}>My Goal</div>
 
         {goalAmount > 0 ? (
-          <div
-            style={{
-              backgroundColor: "rgba(255,255,255,0.13)",
-              borderRadius: "20px",
-              padding: "20px",
-              border: "1px solid rgba(255,255,255,0.18)",
-            }}
-          >
+          <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <div
               style={{
                 borderBottom: "1px solid rgba(255,255,255,0.15)",
@@ -2492,15 +2055,7 @@ const Goal = ({ transactions, accounts, goalAmount }) => {
             </div>
           </div>
         ) : (
-          <div
-            style={{
-              backgroundColor: "rgba(255,255,255,0.13)",
-              borderRadius: "20px",
-              padding: "20px",
-              border: "1px solid rgba(255,255,255,0.18)",
-              textAlign: "center",
-            }}
-          >
+          <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, textAlign: "center", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <div style={{ fontSize: "36px", marginBottom: "10px" }}>🎯</div>
             <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "6px" }}>
               No Goal Set
@@ -2513,19 +2068,11 @@ const Goal = ({ transactions, accounts, goalAmount }) => {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-36px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-40px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
         {goalAmount > 0 && (
           <>
             {/* Progress card */}
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "18px",
-                padding: "18px",
-                marginBottom: "14px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              }}
-            >
+            <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
               <div
                 style={{
                   display: "flex",
@@ -2603,15 +2150,7 @@ const Goal = ({ transactions, accounts, goalAmount }) => {
             </div>
 
             {/* Summary rows card */}
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "18px",
-                padding: "16px",
-                marginBottom: "14px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              }}
-            >
+            <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
               <div
                 style={{
                   display: "flex",
@@ -2668,15 +2207,7 @@ const Goal = ({ transactions, accounts, goalAmount }) => {
 
             {/* Estimate card */}
             {!isAchieved && (
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "18px",
-                  padding: "16px",
-                  marginBottom: "14px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                }}
-              >
+              <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
                 <div
                   style={{
                     fontSize: "13px",
@@ -2808,17 +2339,7 @@ const App = () => {
   }
 
   return (
-    <div
-      style={{
-        fontFamily: "Inter, system-ui, sans-serif",
-        backgroundColor: "#F8FAFC",
-        minHeight: "100vh",
-        maxWidth: "420px",
-        margin: "auto",
-        position: "relative",
-        boxShadow: "0 0 10px rgba(0,0,0,0.05)",
-      }}
-    >
+    <div style={{ fontFamily: "Manrope, system-ui, sans-serif", backgroundColor: T.surface, minHeight: "100vh", maxWidth: "420px", margin: "auto", position: "relative", boxShadow: "0 0 40px rgba(13,33,55,0.08)" }}>
       {activeTab === "dashboard" && (
         <Dashboard
           transactions={transactions}
@@ -2861,45 +2382,14 @@ const App = () => {
       )}
 
       {/* Bottom Nav */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          width: "100%",
-          maxWidth: "420px",
-          backgroundColor: "white",
-          borderTop: "1px solid #EEE",
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "space-around",
-          padding: "8px 0",
-          boxShadow: "0 -2px 10px rgba(0,0,0,0.03)",
-          zIndex: 200,
-        }}
-      >
-        {[["dashboard", "🏠", "Home"],
-          ["transactions", "💳", "Txns"],
-          ["loans", "🤝", "Loans"],
-          ["goal", "🎯", "Goal"],
-          ["settings", "⚙️", "Settings"],
-        ].map(([tab, icon, label]) => (
-          <div
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "6px 0",
-              cursor: "pointer",
-              color: activeTab === tab ? "#1E3A5F" : "#AAA",
-              fontSize: "11px",
-              fontWeight: activeTab === tab ? 700 : 500,
-            }}
+      <div style={{ position: "fixed", bottom: 0, width: "100%", maxWidth: "420px", backgroundColor: "rgba(255,255,255,0.96)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderTop: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", display: "flex", justifyContent: "space-around", padding: "10px 0 12px", boxShadow: T.shadowNav, zIndex: 200 }}>
+        {[["dashboard","🏠","Home"],["transactions","💳","Txns"],["loans","🤝","Loans"],["goal","🎯","Goal"],["settings","⚙️","More"]].map(([tab, icon, label]) => (
+          <div key={tab} className="mm-nav-tab" onClick={() => setActiveTab(tab)}
+            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0", cursor: "pointer", color: activeTab === tab ? T.teal : T.textMuted, fontSize: "11px", fontWeight: activeTab === tab ? 700 : 500 }}
           >
-            <div style={{ fontSize: "22px", marginBottom: "2px" }}>{icon}</div>
-            {label}
+            <div style={{ fontSize: "22px", marginBottom: "2px", filter: activeTab === tab ? "drop-shadow(0 2px 6px rgba(46,196,182,0.4))" : "none" }}>{icon}</div>
+            <span style={{ letterSpacing: "0.2px" }}>{label}</span>
+            {activeTab === tab && <div style={{ width: "18px", height: "3px", borderRadius: "2px", background: T.btnGrad, marginTop: "4px" }} />}
           </div>
         ))}
       </div>
