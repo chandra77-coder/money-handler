@@ -77,7 +77,7 @@
  *    - Background: deep charcoal-teal app shell with glass cards
  */
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 // ─── THEME ──────────────────────────────────────────────────────────────────
 // Central design tokens. Only visual values — no business logic lives here.
