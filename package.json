@@ -1,6 +1,6 @@
 {
   "name": "moneymate",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "MoneyMate - Personal Finance Tracker. A mobile-first React app for tracking transactions, loans, and savings goals.",
   "type": "module",
   "scripts": {

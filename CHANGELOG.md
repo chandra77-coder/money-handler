@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - **Image Compression** - Automatic compression of avatars and QR codes (max 400x400px)
 - **Improved Settings** - Accordion-style menu with better organization
 - **Better Backup/Restore** - Enhanced JSON backup with validation
+- **Daily Transaction Summary** - "Today's Earning" and "Today's Expenses" cards at the top of Transactions tab
 
 ### Changed
 - **Color Scheme** - Upgraded from basic teal to premium ocean/teal with mint and gold accents
