@@ -1688,12 +1688,12 @@ function Pay({ upiList }) {
                 <div onClick={()=>setExpandedId(isOpen?null:u.id)} style={{marginTop:12,cursor:"pointer",textAlign:"center"}}>
                   <div style={{
                     overflow:"hidden",
-                    maxHeight:isOpen?320:72,
+                    maxHeight:isOpen?420:72,
                     transition:"max-height .3s ease",
                     display:"flex",justifyContent:"center"
                   }}>
                     <img src={u.qr} alt={`${u.label} QR`} style={{
-                      width:isOpen?240:72, height:isOpen?240:72,
+                      width:isOpen?320:72, height:isOpen?320:72,
                       borderRadius:R.md, objectFit:"contain",
                       border:`1.5px solid ${T.line}`, display:"block",
                       background:T.bgSoft
