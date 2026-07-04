@@ -729,6 +729,12 @@ function Transactions({ transactions, setTransactions, accounts }) {
   const accountNames = accounts.map(a=>a.name);
   const methods = form.type==="income" ? INCOME_METHODS : EXPENSE_METHODS;
 
+  // Calculate today's earning and expenses
+  const today = todayStr();
+  const todayTransactions = transactions.filter(t => t.date === today);
+  const todayEarning = todayTransactions.filter(t => t.type === "income").reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+  const todayExpenses = todayTransactions.filter(t => t.type === "expense").reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
   const txColor = (t) => t.type==="income"?T.income:t.type==="transfer"?"#9F8AE8":T.expense;
   const txBg    = (t) => t.type==="income"?T.incomeSoft:t.type==="transfer"?T.transferSoft:T.expenseSoft;
   const txPrefix= (t) => t.type==="income"?"+":t.type==="transfer"?"⇄":"−";
@@ -742,6 +748,18 @@ function Transactions({ transactions, setTransactions, accounts }) {
       </div>
 
       <div style={{padding:"10px 12px"}}>
+        {/* Today's Summary Cards */}
+        <div style={{display:"flex",gap:10,marginBottom:14}}>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.income}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TODAY EARNING</div>
+            <div style={{fontSize:16,fontWeight:800,color:T.income,fontFamily:THEME.font.money}}>{fmt(todayEarning)}</div>
+          </div>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.expense}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TODAY EXPENSES</div>
+            <div style={{fontSize:16,fontWeight:800,color:T.expense,fontFamily:THEME.font.money}}>{fmt(todayExpenses)}</div>
+          </div>
+        </div>
+
         {Object.keys(grouped).length===0&&(
           <div style={{textAlign:"center",padding:"40px 0",color:"#9FB3AD"}}>
             <div style={{fontSize:36,marginBottom:8}}>🔍</div>
