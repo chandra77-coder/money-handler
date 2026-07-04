@@ -894,7 +894,7 @@ function Loans({ loans, setLoans }) {
     .filter(l=>{
       if (!search) return true;
       const q=search.toLowerCase();
-      return l.name.toLowerCase().includes(q)||(l.reason||"").toLowerCase().includes(q);
+      return (l.name||"").toLowerCase().includes(q)||(l.reason||"").toLowerCase().includes(q);
     });
 
   const openAdd  = ()  => { setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); };
