@@ -190,31 +190,13 @@ function useLS(key, defaultVal) {
 }
 
 // ─── SEED DATA ────────────────────────────────────────────────────────────────
-const SEED_ACCOUNTS = [
-  { id: 1, name: "Cash",     type: "Cash",   icon: "💵", opening: 8500  },
-  { id: 2, name: "SBI Bank", type: "Bank",   icon: "🏦", opening: 42000 },
-  { id: 3, name: "PhonePe",  type: "Wallet", icon: "📱", opening: 1200  },
-];
+const SEED_ACCOUNTS = [];
 
-const SEED_TX = [
-  { id:1, type:"income",   category:"Salary",   icon:"💼", amount:18000, note:"June salary",    date:"2026-06-24", account:"SBI Bank", toAccount:"", method:"Bank Transfer", createdAt:new Date("2026-06-24T09:05:00").getTime() },
-  { id:2, type:"expense",  category:"Food",     icon:"🍛", amount:450,   note:"Lunch & dinner", date:"2026-06-24", account:"Cash",     toAccount:"", method:"Cash",          createdAt:new Date("2026-06-24T13:42:00").getTime() },
-  { id:3, type:"expense",  category:"Travel",   icon:"🚌", amount:120,   note:"Bus fare",        date:"2026-06-23", account:"Cash",     toAccount:"", method:"Cash",          createdAt:new Date("2026-06-23T08:17:00").getTime() },
-  { id:4, type:"income",   category:"Freelance",icon:"💻", amount:3500,  note:"Web project",     date:"2026-06-22", account:"PhonePe",  toAccount:"", method:"Online / UPI",  createdAt:new Date("2026-06-22T19:30:00").getTime() },
-  { id:5, type:"expense",  category:"Bills",    icon:"📄", amount:800,   note:"Electricity",     date:"2026-06-21", account:"SBI Bank", toAccount:"", method:"Online / UPI",  createdAt:new Date("2026-06-21T11:00:00").getTime() },
-  { id:6, type:"transfer", category:"Transfer", icon:"⇄",  amount:3000,  note:"Moving to bank",  date:"2026-06-20", account:"Cash",     toAccount:"SBI Bank", method:"",       createdAt:new Date("2026-06-20T16:20:00").getTime() },
-];
+const SEED_TX = [];
 
-const SEED_LOANS = [
-  { id:1, type:"took", name:"Rahul Sharma", amount:5000,  reason:"Medical emergency", date:"2026-06-10", status:"pending"  },
-  { id:2, type:"took", name:"Suresh Das",   amount:2000,  reason:"Travel",             date:"2026-06-15", status:"pending"  },
-  { id:3, type:"gave", name:"Amit Roy",     amount:3000,  reason:"Business help",      date:"2026-06-12", status:"pending"  },
-  { id:4, type:"gave", name:"Priya Sen",    amount:1500,  reason:"Personal",           date:"2026-06-05", status:"returned" },
-];
+const SEED_LOANS = [];
 
-const SEED_UPI = [
-  { id:1, label:"Personal UPI", upiId:"chandra@oksbi", qr:null },
-];
+const SEED_UPI = [];
 
 const SEED_PROFILE = { name:"", avatar:null, occupation:"Salaried", monthlyIncome:"", language:"English", dateFormat:"DD/MM/YYYY" };
 
@@ -542,7 +524,7 @@ function Dashboard({ transactions, setTransactions, loans, accounts, openingBala
         </div>
       </div>
 
-      <div style={{padding:"0 12px",marginTop:-24}}>
+      <div style={{padding:"0 12px",marginTop:12}}>
 
         {showReminder && (
           <div style={{background:THEME.colors.goldSoft,borderRadius:R.lg,padding:"12px 14px",
@@ -1438,6 +1420,20 @@ function SettingsSheet({
             )}
           </div>
         )}
+        {/* Clear All Data */}
+        {section==="cleardata" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.expense,marginBottom:10}}>⚠️ Clear All Data?</div>
+            <div style={{fontSize:12,color:T.inkSoft,marginBottom:12}}>
+              This will permanently delete all transactions, loans, accounts, and settings. This action cannot be undone.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <FBtn onClick={()=>setSection(null)} outline color={T.inkSoft} style={{flex:1,padding:"9px"}}>Cancel</FBtn>
+              <FBtn onClick={()=>{setTransactions([]); setLoans([]); setAccounts([]); setOpeningBalance(0); setDeclaredAmount(0); setGoalAmount(0); setManualCheck(0); setUpiList([]); setProfile(SEED_PROFILE); setSection(null);}} bg={G.expense} style={{flex:1,padding:"9px"}}>Delete All</FBtn>
+            </div>
+          </div>
+        )}
+        {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
         {menuRow("ℹ️","About","Version 1.3.0", null)}
 
       </div>
