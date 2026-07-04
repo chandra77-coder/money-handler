@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - **Improved Settings** - Accordion-style menu with better organization
 - **Better Backup/Restore** - Enhanced JSON backup with validation
 - **Daily Transaction Summary** - "Today's Earning" and "Today's Expenses" cards at the top of Transactions tab
+- **Manage Categories** - Add, edit, or delete transaction categories directly from Settings
+- **Data Reset** - "Clear All Data" option in Settings to reset the app to a fresh state
 
 ### Changed
 - **Color Scheme** - Upgraded from basic teal to premium ocean/teal with mint and gold accents
@@ -23,6 +25,10 @@ All notable changes to this project will be documented in this file.
 - **Mobile Design** - Refined responsive layout for better mobile experience
 
 ### Fixed
+- **Clean Slate** - Removed all sample/seed data for a fresh user experience
+- **UI Spacing** - Fixed "My Accounts" overlap on the Dashboard for a cleaner look
+- **Large QR** - Significantly increased the size of expanded QR codes for easier scanning
+- **Null Safety** - Fixed potential null reference in Loans search filter
 - Added explicit React import for better compatibility
 - Improved null-checking in avatarColor function
 - Enhanced error handling in search functionality
