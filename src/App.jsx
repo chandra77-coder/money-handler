@@ -659,7 +659,7 @@ function Dashboard({ transactions, setTransactions, loans, accounts, openingBala
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
 const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:""};
 
-function Transactions({ transactions, setTransactions, accounts }) {
+function Transactions({ transactions, setTransactions, accounts, categories }) {
   const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [form, setForm]           = useState(EMPTY_TX);
@@ -702,7 +702,7 @@ function Transactions({ transactions, setTransactions, accounts }) {
       },...prev]);
     } else {
       if (!form.category || !form.account) return;
-      const cat = [...TX_CATS.income,...TX_CATS.expense].find(c=>c.l===form.category);
+      const cat = [...(categories?.income||[]),...(categories?.expense||[])].find(c=>c.l===form.category);
       setTransactions(prev=>[{...form,id:now,icon:cat?.icon||"💰",createdAt:now,
         amount:parseFloat(form.amount),toAccount:""},...prev]);
     }
@@ -820,9 +820,9 @@ function Transactions({ transactions, setTransactions, accounts }) {
             activeColor="#7C66D9" activeBg={T.transferSoft}/>
         </>) : (<>
           <Label>CATEGORY</Label>
-          <ChipRow items={TX_CATS[form.type]} selected={form.category}
+          <ChipRow items={categories?.[form.type]||[]} selected={form.category}
             onSelect={v=>{
-              const cat=TX_CATS[form.type].find(c=>c.l===v);
+              const cat=(categories?.[form.type]||[]).find(c=>c.l===v);
               setForm({...form,category:v,icon:cat?.icon||"💰"});
             }}/>
           <Label>{form.type==="income"?"RECEIVED IN":"PAID FROM"}</Label>
@@ -2084,7 +2084,7 @@ export default function App() {
         manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
 
       {tab==="transactions" && <Transactions
-        transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>}
+        transactions={transactions} setTransactions={setTransactions} accounts={accounts} categories={categories}/>}
 
       {tab==="loans"        && <Loans loans={loans} setLoans={setLoans}/>}
 
