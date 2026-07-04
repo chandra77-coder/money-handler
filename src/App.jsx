@@ -1,2401 +1,2088 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+/**
+ * MY FINANCE APP — Complete Personal Finance Tracker
+ * Built with React + useState + localStorage (no external dependencies)
+ *
+ * FEATURES:
+ * 1. DASHBOARD (Home Tab)
+ *    - Total Available Balance = sum of all account balances (each account opening + income - expense - transferOut + transferIn)
+ *    - Shows "Includes ₹X opening balance" note if global opening balance > 0
+ *    - Income and Expense totals shown side by side
+ *    - My Accounts: each account with its live balance
+ *    - Loan snapshot: "They owe me" (pending gave loans) and "I owe them" (pending took loans)
+ *    - Savings Goal card (only shown if goal amount set in Settings):
+ *        progress bar, target, current balance, still needed, milestone message, 🎉 if achieved
+ *    - Wealth Overview card (only shown if declared amount set in Settings):
+ *        declared total vs currently tracked, difference shown as "missing" or "over" or "Balanced"
+ *    - Manual Check card (only shown if manual check amount set in Settings):
+ *        app calculated vs your physical count, difference with color and message
+ *    - Recent Transactions (top 4)
+ *
+ * 2. TRANSACTIONS TAB
+ *    - Search bar at top: filters list by category/note/account in real time
+ *    - Typing exactly "create" (case-insensitive) in search bar auto-opens add sheet and clears search
+ *    - FAB (+) button also opens add sheet
+ *    - Add sheet has 3 type tabs: ↓ Expense | ↑ Income | ⇄ Transfer
+ *    - Income/Expense: choose amount, category, account, payment method, note, date
+ *    - Transfer: choose amount, from account, to account, note, date (no category/method)
+ *    - Transaction list grouped by Today / Yesterday / date
+ *    - Income shown in green (+), Expense in red (−), Transfer in purple (⇄)
+ *    - Transfer shows "AccountA → AccountB" as title
+ *
+ * 3. LOANS TAB
+ *    - Search bar at top: filters by name/reason. Typing "create" opens add sheet
+ *    - FAB (+) also opens add sheet
+ *    - Net Position card: totalGave(pending) - totalTook(pending)
+ *    - Filter tabs: All | 🔴 I Took | 🟢 I Gave
+ *    - Each loan card: avatar (color by first letter), name, status badge, reason, date, amount
+ *    - Actions per card: ✓ Mark Settled / ↩ Mark Pending | ✏️ Edit | 🗑 Delete (with confirm)
+ *    - Add/Edit sheet: type (took/gave), name, amount, reason, date, status
+ *
+ * 4. SETTINGS TAB (single source of truth for all configuration)
+ *    - Each item is a tappable accordion row with a › arrow that rotates when open
+ *    - 🏦 Manage Accounts: add/edit/delete accounts. Each account has name, type (Cash/Bank/Wallet/Other), icon, opening balance.
+ *      Accounts defined here appear as options in the transaction add sheet.
+ *    - 💵 Opening Balance: a global extra starting amount added to total balance. Separate from account opening balances.
+ *    - 💼 Declared Total Amount: your known total wealth. Dashboard shows diff vs tracked.
+ *    - 🎯 Savings Goal: set a target amount. Dashboard shows progress bar toward it using current tracked balance.
+ *    - 🔎 Manual Check Amount: your physically counted amount. Dashboard compares vs app calculated.
+ *    - 🔒 PIN Lock: set a 4-digit PIN. When enabled, app shows PIN entry screen on load before showing any content.
+ *      Can change PIN or disable it. Stored in localStorage.
+ *    - 👤 Profile: fully functional. 🔔 Notifications: on/off toggle + in-app reminder banner.
+ *    - 💾 Backup: export transactions as CSV, export/restore a full JSON backup. ℹ️ About: UI shown, not yet functional
+ *
+ * 5. PIN SCREEN
+ *    - Full screen overlay with gradient background
+ *    - 4 dot indicators fill as digits typed
+ *    - Number keypad 1-9, 0, backspace
+ *    - Verify mode: checks against saved PIN, shows error on mismatch
+ *    - Set mode: two-step (enter then confirm). If mismatch, restart from enter step.
+ *
+ * 6. LOCAL STORAGE
+ *    - All state persisted via useLS hook (read on mount, write on every change)
+ *    - Keys: fm_transactions, fm_loans, fm_accounts, fm_opening, fm_declared, fm_goal, fm_manual, fm_pin, fm_pin_enabled
+ *    - Seed data used only if localStorage is empty for that key
+ *
+ * CALCULATION RULES:
+ *    - Account balance = account.opening + sum(income where account=this) - sum(expense where account=this)
+ *                        - sum(transfer where account=this [outgoing]) + sum(transfer where toAccount=this [incoming])
+ *    - Total tracked = sum of all account balances + globalOpeningBalance
+ *    - Transfers do NOT affect totalIncome or totalExpense counters (they are neutral)
+ *    - Savings goal progress % = (totalTracked / goalAmount) * 100, capped at 100 for bar display
+ *    - Manual check diff: manualCheck - totalTracked. Positive = you have LESS than expected. Negative = you have MORE.
+ *    - Declared diff: declaredAmount - totalTracked. Positive = untracked. Negative = overspent vs declared.
+ *
+ * COLOR SCHEME (premium ocean/teal redesign — see THEME object below):
+ *    - Primary deep teal, mint accent, gold accent for highlights
+ *    - Income: mint green, Expense: coral red, Transfer: soft violet
+ *    - Background: deep charcoal-teal app shell with glass cards
+ */
 
-// THEME — single source of truth for all design tokens
-const T = {
-  // Gradients
-  headerGrad: "linear-gradient(160deg, #0D2137 0%, #0F3460 50%, #0A4D68 100%)",
-  btnGrad: "linear-gradient(135deg, #2EC4B6 0%, #0A9396 100%)",
-  btnGradGold: "linear-gradient(135deg, #F4A261 0%, #E76F51 100%)",
-  btnGradRed: "linear-gradient(135deg, #E63946 0%, #C1121F 100%)",
-  btnGradGreen: "linear-gradient(135deg, #2DC653 0%, #1DB954 100%)",
-  btnGradGray: "linear-gradient(135deg, #8D99AE 0%, #6C757D 100%)",
-  achieveGrad: "linear-gradient(135deg, #1DB954 0%, #0E9E46 100%)",
-  // Colors
-  teal: "#2EC4B6",
-  tealDark: "#0A9396",
-  gold: "#F4A261",
-  red: "#E63946",
-  green: "#2DC653",
-  navy: "#0D2137",
-  navyMid: "#0F3460",
-  surface: "#F0F6F8",
-  surfaceCard: "#FFFFFF",
-  textPrimary: "#0D2137",
-  textSecondary: "#6B7F96",
-  textMuted: "#B0BEC5",
-  border: "#E2EBF0",
-  // Shadows
-  shadowCard: "0 4px 20px rgba(13,33,55,0.08)",
-  shadowBtn: "0 4px 14px rgba(46,196,182,0.35)",
-  shadowBtnRed: "0 4px 14px rgba(230,57,70,0.35)",
-  shadowBtnGold: "0 4px 14px rgba(244,162,97,0.35)",
-  shadowBtnGreen: "0 4px 14px rgba(45,198,83,0.35)",
-  shadowNav: "0 -4px 20px rgba(13,33,55,0.10)",
-  // Radius
-  r12: "12px",
-  r16: "16px",
-  r20: "20px",
-  r24: "24px",
-  // Glass
-  glass: "rgba(255,255,255,0.10)",
-  glassBorder: "rgba(255,255,255,0.18)",
-  glassDark: "rgba(13,33,55,0.35)",
+import { useState, useEffect } from "react";
+
+// ─── THEME ──────────────────────────────────────────────────────────────────
+// Central design tokens. Only visual values — no business logic lives here.
+const THEME = {
+  colors: {
+    bg:           "#1a3a5c",
+    bgSoft:       "#F2F4F8",
+    teal900:      "#13283F",
+    teal800:      "#1a3a5c",
+    teal700:      "#1E3A5F",
+    teal600:      "#234A75",
+    teal500:      "#2D6A9F",
+    mint:         "#7EFFC5",
+    mintSoft:     "#E5F4FF",
+    gold:         "#F5B942",
+    goldSoft:     "#FFF3DD",
+    income:       "#1DB954",
+    incomeSoft:   "#E8FBF0",
+    expense:      "#E53E3E",
+    expenseSoft:  "#FFF0F0",
+    transfer:     "#7B5EA7",
+    transferSoft: "#F3EEFF",
+    ink:          "#1A1A2E",
+    inkSoft:      "#8A93A0",
+    line:         "#E8EDF3",
+    card:         "#FFFFFF",
+    glass:        "rgba(255,255,255,0.13)",
+    glassBorder:  "rgba(255,255,255,0.18)",
+    glassStrong:  "rgba(255,255,255,0.15)",
+  },
+  gradient: {
+    header:  "linear-gradient(135deg,#1a3a5c 0%,#2d6a9f 100%)",
+    primary: "linear-gradient(135deg,#2D6A9F 0%,#1a3a5c 100%)",
+    gold:    "linear-gradient(135deg,#F5B942 0%,#E0A53A 100%)",
+    income:  "linear-gradient(135deg,#1DB954,#15A047)",
+    expense: "linear-gradient(135deg,#E53E3E,#C73333)",
+    transfer:"linear-gradient(135deg,#7B5EA7,#6B4F95)",
+    nav:     "linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.99))",
+  },
+  shadow: {
+    soft:    "0 2px 10px rgba(26,58,92,0.08)",
+    card:    "0 2px 12px rgba(26,58,92,0.07)",
+    raised:  "0 10px 30px rgba(26,58,92,0.18)",
+    button:  "0 6px 16px rgba(45,106,159,0.35)",
+    nav:     "0 -4px 20px rgba(26,58,92,0.10)",
+    glow:    "0 0 0 1px rgba(255,255,255,0.18) inset",
+  },
+  radius: { sm:10, md:14, lg:18, xl:22, xxl:28, pill:999 },
+  font: {
+    body: "'Inter', system-ui, sans-serif",
+    money:"'Inter', system-ui, sans-serif",
+  },
 };
+const T = THEME.colors, G = THEME.gradient, SH = THEME.shadow, R = THEME.radius;
 
-// 2. fmt, todayStr, yesterdayStr, avatarColor helpers
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
+const fmtDateLong = (dateStr) => {
+  if (!dateStr) return "—";
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" });
+};
+const fmtTime = (ms) => ms ? new Date(ms).toLocaleTimeString("en-IN", { hour:"numeric", minute:"2-digit", hour12:true }) : null;
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const yesterdayStr = () =>
-  new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-const currentMonthYear = () =>
-  new Date().toLocaleString("en-IN", { month: "long", year: "numeric" }).toUpperCase();
-const avatarColor = (name) => {
-  if (!name || name.length === 0) return "#4F7CAC";
-  return [
-    "#4F7CAC",
-    "#E07B54",
-    "#5BA858",
-    "#9B59B6",
-    "#E74C3C",
-    "#1ABC9C",
-    "#E67E22",
-  ][name.charCodeAt(0) % 7];
-};
+const yesterdayStr = () => new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+const monthYearStr = () => new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}).toUpperCase();
+const sortByDateDesc = (list) => [...list].sort((a,b)=> (b.date||"").localeCompare(a.date||"") || b.id-a.id);
 
-// 3. useLS hook with enhanced error handling
-const useLS = (key, defaultVal) => {
-  const [value, setValue] = useState(() => {
+function avatarColor(name) {
+  const palette = ["#4F7CAC","#E07B54","#5BA858","#9B59B6","#E74C3C","#1ABC9C","#E67E22"];
+  return palette[(name || "A").charCodeAt(0) % palette.length];
+}
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
+function transactionsToCSV(transactions) {
+  const header = ["Date","Time","Type","Category","Account","To Account","Method","Amount","Note"];
+  const rows = sortByDateDesc(transactions).map(t=>[
+    t.date, fmtTime(t.createdAt)||"", t.type, t.category, t.account, t.toAccount||"", t.method||"", t.amount, t.note||""
+  ]);
+  return [header, ...rows].map(r=>r.map(csvEscape).join(",")).join("\n");
+}
+
+// ─── LOCAL STORAGE HOOK ───────────────────────────────────────────────────────
+function useLS(key, defaultVal) {
+  const [val, setVal] = useState(() => {
     try {
-      if (typeof window === "undefined") return defaultVal;
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultVal;
-    } catch (error) {
-      console.warn(`[useLS] Error reading ${key}:`, error.message);
-      return defaultVal;
-    }
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) : defaultVal;
+    } catch { return defaultVal; }
   });
+  const set = (v) => {
+    const next = typeof v === "function" ? v(val) : v;
+    setVal(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+  };
+  return [val, set];
+}
 
-  useEffect(() => {
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(key, JSON.stringify(value));
-      }
-    } catch (error) {
-      console.warn(`[useLS] Error writing ${key}:`, error.message);
-      if (error.name === "QuotaExceededError") {
-        console.error("Local storage quota exceeded. Some data may not be saved.");
-      }
-    }
-  }, [key, value]);
-
-  return [value, setValue];
-};
-
-// 4. SEED_ACCOUNTS, SEED_TX, SEED_LOANS constants
-// Empty by default - users can add their own accounts
-const SEED_ACCOUNTS = [];
-
-// Empty by default - users can add their own transactions
-const SEED_TX = [];
-
-// Empty by default - users can add their own loans
-const SEED_LOANS = [];
-
-// 5. TX_CATS, INCOME_METHODS, EXPENSE_METHODS, ACCOUNT_TYPES constants
-const TX_CATS = {
-  income: [
-    { l: "Salary", icon: "💼" },
-    { l: "Freelance", icon: "💻" },
-    { l: "Business", icon: "🏪" },
-    { l: "Gift", icon: "🎁" },
-    { l: "Other", icon: "💰" },
-  ],
-  expense: [
-    { l: "Food", icon: "🍛" },
-    { l: "Travel", icon: "🚌" },
-    { l: "Bills", icon: "📄" },
-    { l: "Shopping", icon: "🛍️" },
-    { l: "Health", icon: "💊" },
-    { l: "Other", icon: "📦" },
-  ],
-};
-
-const INCOME_METHODS = ["Cash", "Online / UPI", "Bank Transfer", "Cheque"];
-const EXPENSE_METHODS = ["Cash", "UPI / Online", "Card", "Bank Transfer"];
-const ACCOUNT_TYPES = [
-  { type: "Cash", icon: "💵" },
-  { type: "Bank", icon: "🏦" },
-  { type: "Wallet", icon: "📱" },
-  { type: "Other", icon: "💰" },
+// ─── SEED DATA ────────────────────────────────────────────────────────────────
+const SEED_ACCOUNTS = [
+  { id: 1, name: "Cash",     type: "Cash",   icon: "💵", opening: 8500  },
+  { id: 2, name: "SBI Bank", type: "Bank",   icon: "🏦", opening: 42000 },
+  { id: 3, name: "PhonePe",  type: "Wallet", icon: "📱", opening: 1200  },
 ];
 
-// 6. Shared Components (Sheet, FInput, FBtn, SearchBar, TypeToggle, Label, ChipRow)
-const Sheet = ({ children, show, onClose }) => {
-  if (!show) return null;
+const SEED_TX = [
+  { id:1, type:"income",   category:"Salary",   icon:"💼", amount:18000, note:"June salary",    date:"2026-06-24", account:"SBI Bank", toAccount:"", method:"Bank Transfer", createdAt:new Date("2026-06-24T09:05:00").getTime() },
+  { id:2, type:"expense",  category:"Food",     icon:"🍛", amount:450,   note:"Lunch & dinner", date:"2026-06-24", account:"Cash",     toAccount:"", method:"Cash",          createdAt:new Date("2026-06-24T13:42:00").getTime() },
+  { id:3, type:"expense",  category:"Travel",   icon:"🚌", amount:120,   note:"Bus fare",        date:"2026-06-23", account:"Cash",     toAccount:"", method:"Cash",          createdAt:new Date("2026-06-23T08:17:00").getTime() },
+  { id:4, type:"income",   category:"Freelance",icon:"💻", amount:3500,  note:"Web project",     date:"2026-06-22", account:"PhonePe",  toAccount:"", method:"Online / UPI",  createdAt:new Date("2026-06-22T19:30:00").getTime() },
+  { id:5, type:"expense",  category:"Bills",    icon:"📄", amount:800,   note:"Electricity",     date:"2026-06-21", account:"SBI Bank", toAccount:"", method:"Online / UPI",  createdAt:new Date("2026-06-21T11:00:00").getTime() },
+  { id:6, type:"transfer", category:"Transfer", icon:"⇄",  amount:3000,  note:"Moving to bank",  date:"2026-06-20", account:"Cash",     toAccount:"SBI Bank", method:"",       createdAt:new Date("2026-06-20T16:20:00").getTime() },
+];
+
+const SEED_LOANS = [
+  { id:1, type:"took", name:"Rahul Sharma", amount:5000,  reason:"Medical emergency", date:"2026-06-10", status:"pending"  },
+  { id:2, type:"took", name:"Suresh Das",   amount:2000,  reason:"Travel",             date:"2026-06-15", status:"pending"  },
+  { id:3, type:"gave", name:"Amit Roy",     amount:3000,  reason:"Business help",      date:"2026-06-12", status:"pending"  },
+  { id:4, type:"gave", name:"Priya Sen",    amount:1500,  reason:"Personal",           date:"2026-06-05", status:"returned" },
+];
+
+const SEED_UPI = [
+  { id:1, label:"Personal UPI", upiId:"chandra@oksbi", qr:null },
+];
+
+const SEED_PROFILE = { name:"", avatar:null, occupation:"Salaried", monthlyIncome:"", language:"English", dateFormat:"DD/MM/YYYY" };
+
+const OCCUPATIONS = ["Salaried","Business","Freelance","Student","Other"];
+const LANGUAGES = ["English","Bengali"];
+const DATE_FORMATS = ["DD/MM/YYYY","MM/DD/YYYY","YYYY-MM-DD"];
+
+const TX_CATS = {
+  income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
+  expense: [{l:"Food",icon:"🍛"},{l:"Travel",icon:"🚌"},{l:"Bills",icon:"📄"},{l:"Shopping",icon:"🛍️"},{l:"Health",icon:"💊"},{l:"Other",icon:"📦"}],
+};
+const INCOME_METHODS  = ["Cash","Online / UPI","Bank Transfer","Cheque"];
+const EXPENSE_METHODS = ["Cash","UPI / Online","Card","Bank Transfer"];
+const ACCOUNT_TYPES   = [{type:"Cash",icon:"💵"},{type:"Bank",icon:"🏦"},{type:"Wallet",icon:"📱"},{type:"Other",icon:"💰"}];
+
+// ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
+function Sheet({ open, onClose, children }) {
+  if (!open) return null;
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: "rgba(13,33,55,0.65)",
-        zIndex: 300,
-        display: "flex",
-        alignItems: "flex-end",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: "#FFFFFF",
-          borderRadius: "28px 28px 0 0",
-          padding: "20px 20px 52px",
-          maxHeight: "92vh",
-          overflowY: "auto",
-          width: "100%",
-          boxSizing: "border-box",
-          boxShadow: "0 -8px 40px rgba(13,33,55,0.18)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ width: "36px", height: "4px", backgroundColor: T.border, borderRadius: "4px", margin: "0 auto 20px" }} />
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(2px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:`${R.xxl}px ${R.xxl}px 0 0`,padding:"20px 18px 48px",width:"100%",maxWidth:420,maxHeight:"92vh",overflowY:"auto",boxSizing:"border-box",boxShadow:SH.raised,fontFamily:THEME.font.body}}>
+        <div style={{width:42,height:5,borderRadius:3,background:T.line,margin:"0 auto 18px"}}/>
         {children}
       </div>
     </div>
   );
-};
+}
 
-const FInput = ({ value, onChange, placeholder, type = "text", style }) => (
-  <input
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    type={type}
-    style={{
-      width: "100%",
-      padding: "13px 16px",
-      borderRadius: T.r16,
-      border: `1.5px solid ${T.border}`,
-      outline: "none",
-      fontFamily: "inherit",
-      fontSize: "14px",
-      color: T.textPrimary,
-      backgroundColor: T.surface,
-      boxSizing: "border-box",
-      transition: "border-color 0.15s, box-shadow 0.15s",
-      ...style,
-    }}
-  />
-);
-
-const FBtn = ({ outline, bg, color = T.navy, style, onClick, children }) => (
-  <button
-    className="mm-btn"
-    onClick={onClick}
-    style={{
-      fontFamily: "inherit",
-      fontWeight: 700,
-      fontSize: "14px",
-      borderRadius: T.r16,
-      cursor: "pointer",
-      border: outline ? `1.5px solid ${color}` : "none",
-      background: outline ? "white" : bg || T.btnGrad,
-      color: outline ? color : "white",
-      padding: "13px 16px",
-      width: "100%",
-      boxSizing: "border-box",
-      boxShadow: outline ? "none" : T.shadowBtn,
-      letterSpacing: "0.2px",
-      ...style,
-    }}
-  >
-    {children}
-  </button>
-);
-
-const SearchBar = ({ value, onChange, onClear }) => (
-  <div style={{ position: "relative", margin: "0 16px 12px" }}>
-    <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: T.textSecondary, fontSize: "15px" }}>🔍</span>
-    <input
-      value={value}
-      onChange={onChange}
-      placeholder="Search..."
-      style={{
-        width: "100%",
-        padding: "12px 38px",
-        borderRadius: T.r20,
-        border: "none",
-        fontSize: "14px",
-        backgroundColor: "rgba(255,255,255,0.97)",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
-        boxSizing: "border-box",
-        fontFamily: "inherit",
-        outline: "none",
-        color: T.textPrimary,
-        fontWeight: 500,
-      }}
-    />
-    {value && (
-      <span onClick={onClear} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: T.textSecondary, fontSize: "14px" }}>✕</span>
-    )}
-  </div>
-);
-
-const TypeToggle = ({ options, value, onChange, colors = {} }) => (
-  <div style={{ display: "flex", flexDirection: "row", backgroundColor: T.surface, borderRadius: T.r16, padding: "4px", gap: "4px", marginBottom: "16px" }}>
-    {options.map(([optValue, label]) => (
-      <div
-        key={optValue}
-        className="mm-chip"
-        onClick={() => onChange(optValue)}
-        style={{
-          flex: 1,
-          borderRadius: "12px",
-          padding: "11px 4px",
-          fontWeight: 700,
-          fontSize: "12px",
-          textAlign: "center",
-          cursor: "pointer",
-          background: value === optValue ? (colors[optValue] || T.btnGrad) : "transparent",
-          color: value === optValue ? "white" : T.textSecondary,
-          boxShadow: value === optValue ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
-          letterSpacing: "0.2px",
-        }}
-      >
-        {label}
-      </div>
-    ))}
-  </div>
-);
-
-const Label = ({ children, style }) => (
-  <div style={{ fontSize: "11px", color: T.textSecondary, fontWeight: 700, letterSpacing: "0.8px", marginBottom: "7px", textTransform: "uppercase", ...style }}>
-    {children}
-  </div>
-);
-
-const ChipRow = ({ items, value, onChange, activeColor, activeBg }) => (
-  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginBottom: "14px" }}>
-    {items.map((item) => {
-      const itemValue = typeof item === "string" ? item : item.l;
-      const isActive = value === itemValue;
-      return (
-        <div
-          key={itemValue}
-          className="mm-chip"
-          onClick={() => onChange(itemValue)}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "20px",
-            border: `1.5px solid ${isActive ? activeColor || T.teal : T.border}`,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "12px",
-            fontWeight: 600,
-            backgroundColor: isActive ? activeBg || "rgba(46,196,182,0.1)" : "white",
-            color: isActive ? activeColor || T.teal : T.textSecondary,
-            display: "flex",
-            alignItems: "center",
-            gap: "5px",
-            boxShadow: isActive ? `0 2px 8px rgba(0,0,0,0.08)` : "none",
-          }}
-        >
-          {item.icon && <span>{item.icon}</span>}
-          {itemValue}
-        </div>
-      );
-    })}
-  </div>
-);
-
-// 7. PinScreen component
-const PinScreen = ({ mode, savedPin, onSuccess, onCancel }) => {
-  const [digits, setDigits] = useState("");
-  const [step, setStep] = useState(mode === "set" ? "enter" : "verify");
-  const [firstPin, setFirstPin] = useState("");
-  const [error, setError] = useState("");
-
-  const handleTap = useCallback((digit) => {
-    setError("");
-    setDigits((prev) => {
-      if (prev.length >= 4) return prev;
-      const newDigits = prev + digit;
-      if (newDigits.length === 4) {
-        setTimeout(() => {
-          if (step === "verify") {
-            if (newDigits === savedPin) {
-              onSuccess();
-            } else {
-              setError("Incorrect PIN");
-              setDigits("");
-            }
-          } else if (step === "enter") {
-            setFirstPin(newDigits);
-            setStep("confirm");
-            setDigits("");
-          } else if (step === "confirm") {
-            if (newDigits === firstPin) {
-              onSuccess(newDigits);
-            } else {
-              setError("PINs do not match");
-              setDigits("");
-              setStep("enter");
-              setFirstPin("");
-            }
-          }
-        }, 150);
-      }
-      return newDigits;
-    });
-  }, [step, savedPin, firstPin, onSuccess]);
-
-  const handleDelete = useCallback(() => {
-    setError("");
-    setDigits((prev) => prev.slice(0, -1));
-  }, []);
-
-  const keypad = [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "",
-    "0",
-    "⌫",
-  ];
-
-  const titleText = step === "enter" ? "Set Your PIN" : step === "confirm" ? "Confirm Your PIN" : "Enter Your PIN";
-  const subtitleText = step === "enter" ? "Choose a 4-digit PIN to secure your app." : step === "confirm" ? "Re-enter your PIN to confirm." : "Please enter your 4-digit PIN to unlock.";
-
+function FInput({value,onChange,placeholder,type="text",style={}}) {
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: T.headerGrad, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "white", fontFamily: "Manrope, system-ui, sans-serif" }}>
-      <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔒</div>
-      <div style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.5px" }}>{titleText}</div>
-      <div style={{ fontSize: "13px", opacity: 0.65, padding: "8px 40px 28px", textAlign: "center", lineHeight: 1.5 }}>{subtitleText}</div>
-      <div style={{ display: "flex", gap: "16px", marginBottom: "20px" }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} style={{ width: "14px", height: "14px", borderRadius: "50%", backgroundColor: digits.length > i ? T.teal : "rgba(255,255,255,0.25)", transition: "background 0.15s, transform 0.1s", transform: digits.length > i ? "scale(1.2)" : "scale(1)" }} />
+    <input value={value} onChange={onChange} placeholder={placeholder} type={type}
+      onFocus={e=>{e.target.style.borderColor=T.teal500;e.target.style.boxShadow=`0 0 0 3px ${T.mintSoft}`;}}
+      onBlur={e=>{e.target.style.borderColor=T.line;e.target.style.boxShadow="none";}}
+      style={{width:"100%",padding:"13px 15px",borderRadius:R.md,border:`1.5px solid ${T.line}`,
+        background:T.bgSoft,fontSize:14,boxSizing:"border-box",outline:"none",
+        fontFamily:THEME.font.body,color:T.ink,transition:"border-color .15s, box-shadow .15s",...style}}/>
+  );
+}
+
+function FBtn({children,onClick,bg,outline,color=T.teal700,style={}}) {
+  return (
+    <button onClick={onClick}
+      onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
+      onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+      onTouchStart={e=>e.currentTarget.style.transform="scale(0.97)"}
+      onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}
+      style={{
+      padding:"13px 16px",borderRadius:R.md,cursor:"pointer",fontWeight:700,fontSize:14,
+      border: outline ? `1.5px solid ${color}` : "none",
+      background: outline ? "transparent" : (bg || G.primary),
+      color: outline ? color : "white",
+      boxShadow: outline ? "none" : SH.button,
+      fontFamily:THEME.font.body, transition:"transform .1s ease",...style
+    }}>{children}</button>
+  );
+}
+
+function ToggleSwitch({ on, onChange }) {
+  return (
+    <button onClick={(e)=>{e.stopPropagation();onChange(!on);}} style={{
+      width:46,height:27,borderRadius:R.pill,border:"none",cursor:"pointer",flexShrink:0,
+      background:on?G.primary:T.line,position:"relative",transition:"background .2s",padding:0}}>
+      <div style={{position:"absolute",top:3,left:on?22:3,width:21,height:21,borderRadius:"50%",
+        background:"white",boxShadow:"0 2px 4px rgba(0,0,0,0.25)",transition:"left .2s"}}/>
+    </button>
+  );
+}
+
+function TransactionDetailSheet({ tx, onClose, onDelete }) {
+  if (!tx) return null;
+  const color = tx.type==="income" ? T.income : tx.type==="transfer" ? "#7B5EA7" : T.expense;
+  const bg    = tx.type==="income" ? T.incomeSoft : tx.type==="transfer" ? T.transferSoft : T.expenseSoft;
+  const prefix= tx.type==="income" ? "+" : tx.type==="transfer" ? "⇄" : "−";
+  const time  = fmtTime(tx.createdAt);
+  return (
+    <Sheet open={!!tx} onClose={onClose}>
+      <div style={{textAlign:"center",marginBottom:18}}>
+        <div style={{width:56,height:56,borderRadius:R.lg,background:bg,margin:"0 auto 10px",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{tx.icon}</div>
+        <div style={{fontSize:16,fontWeight:700,color:T.ink}}>
+          {tx.type==="transfer" ? `${tx.account} → ${tx.toAccount}` : tx.category}
+        </div>
+        <div style={{fontSize:26,fontWeight:700,color,marginTop:6,fontFamily:THEME.font.money}}>
+          {prefix}{fmt(tx.amount)}
+        </div>
+      </div>
+
+      <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"4px 14px"}}>
+        {[
+          {label:"Date", value:fmtDateLong(tx.date)},
+          {label:"Time", value: time || "Not recorded (added before time tracking)"},
+          ...(tx.type!=="transfer" ? [
+            {label:"Account", value:tx.account},
+            {label:"Method",  value:tx.method||"—"},
+          ] : [
+            {label:"From", value:tx.account},
+            {label:"To",   value:tx.toAccount},
+          ]),
+          {label:"Note", value:tx.note||"—"},
+        ].map((row,i,arr)=>(
+          <div key={row.label} style={{display:"flex",justifyContent:"space-between",gap:12,
+            padding:"12px 0",borderBottom:i<arr.length-1?`1px solid ${T.line}`:"none"}}>
+            <div style={{fontSize:13,color:T.inkSoft,flexShrink:0}}>{row.label}</div>
+            <div style={{fontSize:13,fontWeight:600,color:T.ink,textAlign:"right"}}>{row.value}</div>
+          </div>
         ))}
       </div>
-      <div style={{ height: "22px", marginBottom: "14px" }}>
-        {error && <div style={{ fontSize: "12px", color: "#FF9E9E", textAlign: "center" }}>{error}</div>}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,74px)", gap: "14px" }}>
-        {keypad.map((key, index) =>
-          key === "" ? <div key={index} /> : (
-            <button key={key} className="mm-btn" onClick={() => key === "⌫" ? handleDelete() : handleTap(key)}
-              style={{ width: "74px", height: "74px", borderRadius: "50%", border: "none", cursor: "pointer", backgroundColor: key === "⌫" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.12)", color: "white", fontSize: key === "⌫" ? "20px" : "24px", fontWeight: 700, fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,0,0,0.15)" }}
-            >{key}</button>
-          )
-        )}
-      </div>
-      {onCancel && (
-        <button onClick={onCancel} style={{ marginTop: "32px", backgroundColor: "transparent", border: "none", color: "white", fontSize: "14px", cursor: "pointer", fontFamily: "inherit", opacity: 0.65, letterSpacing: "0.3px" }}>Cancel</button>
+
+      {onDelete && (
+        <FBtn onClick={()=>{onDelete(tx.id);onClose();}} bg={G.expense} style={{width:"100%",padding:"14px",marginTop:16}}>
+          🗑 Delete Transaction
+        </FBtn>
+      )}
+    </Sheet>
+  );
+}
+
+function SearchBar({value, onChange, placeholder}) {
+  return (
+    <div style={{position:"relative",margin:"0 16px 12px"}}>
+      <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:15,color:T.inkSoft}}>🔍</span>
+      <input value={value} onChange={onChange} placeholder={placeholder}
+        style={{width:"100%",padding:"13px 38px",borderRadius:R.pill,border:`1px solid ${T.glassBorder}`,
+          fontSize:13,background:"rgba(255,255,255,0.94)",boxSizing:"border-box",outline:"none",
+          boxShadow:"0 4px 16px rgba(0,0,0,0.18)",fontFamily:THEME.font.body,color:T.ink}}/>
+      {value && (
+        <span onClick={()=>onChange({target:{value:""}})}
+          style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.inkSoft,fontSize:14}}>✕</span>
       )}
     </div>
   );
-};
+}
 
-// 8. calcAccountBalances utility function with memoization
-const calcAccountBalances = (accounts, transactions) => {
-  return accounts.map((account) => {
-    let balance = parseFloat(account.opening) || 0;
-    transactions.forEach((tx) => {
-      const amount = parseFloat(tx.amount) || 0;
-      if (tx.type === "income" && tx.account === account.name) {
-        balance += amount;
-      } else if (tx.type === "expense" && tx.account === account.name) {
-        balance -= amount;
-      } else if (tx.type === "transfer") {
-        if (tx.account === account.name) {
-          balance -= amount;
+function TypeToggle({options, value, onChange, colors={}}) {
+  return (
+    <div style={{display:"flex",background:T.bgSoft,borderRadius:R.md,padding:4,gap:4,marginBottom:14,border:`1px solid ${T.line}`}}>
+      {options.map(([v,lbl])=>(
+        <button key={v} onClick={()=>onChange(v)} style={{
+          flex:1,padding:"11px 4px",border:"none",borderRadius:R.sm,cursor:"pointer",
+          fontWeight:700,fontSize:12,transition:"all .2s",fontFamily:THEME.font.body,
+          background: value===v ? (colors[v] || G.primary) : "transparent",
+          color: value===v ? "white" : T.inkSoft,
+          boxShadow: value===v ? SH.soft : "none",
+        }}>{lbl}</button>
+      ))}
+    </div>
+  );
+}
+
+function Label({children}) {
+  return <div style={{fontSize:11,color:T.inkSoft,fontWeight:700,letterSpacing:.6,marginBottom:7,fontFamily:THEME.font.body,textTransform:"uppercase"}}>{children}</div>;
+}
+
+function ChipRow({items, selected, onSelect, activeColor=T.teal700, activeBg=T.mintSoft}) {
+  return (
+    <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>
+      {items.map(item=>{
+        const key = typeof item === "string" ? item : item.l||item.type||item;
+        const label = typeof item === "string" ? item : (item.l||item.type);
+        const prefix = typeof item === "object" && item.icon ? item.icon+" " : "";
+        const isActive = selected === key;
+        return (
+          <button key={key} onClick={()=>onSelect(key)} style={{
+            padding:"8px 14px",borderRadius:R.pill,border:"1.5px solid",cursor:"pointer",fontFamily:THEME.font.body,
+            borderColor: isActive ? activeColor : T.line,
+            background: isActive ? activeBg : T.card,
+            fontSize:12,fontWeight:700,
+            boxShadow: isActive ? SH.soft : "none",
+            color: isActive ? activeColor : T.inkSoft,
+            transition:"all .15s"
+          }}>{prefix}{label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── PIN SCREEN ───────────────────────────────────────────────────────────────
+function PinScreen({ mode, savedPin, onSuccess, onCancel }) {
+  const [digits, setDigits] = useState("");
+  const [step, setStep]     = useState("enter"); // "enter" | "confirm"
+  const [first, setFirst]   = useState("");
+  const [err, setErr]       = useState("");
+
+  const tap = (d) => {
+    if (digits.length >= 4) return;
+    const next = digits + d;
+    setDigits(next);
+    setErr("");
+    if (next.length === 4) {
+      setTimeout(() => {
+        if (mode === "verify") {
+          if (next === savedPin) onSuccess();
+          else { setErr("Wrong PIN. Try again."); setDigits(""); }
+        } else {
+          if (step === "enter") { setFirst(next); setStep("confirm"); setDigits(""); }
+          else {
+            if (next === first) onSuccess(next);
+            else { setErr("PINs don't match. Try again."); setDigits(""); setStep("enter"); setFirst(""); }
+          }
         }
-        if (tx.toAccount === account.name) {
-          balance += amount;
-        }
-      }
-    });
-    return { ...account, balance };
-  });
-};
+      }, 120);
+    }
+  };
 
-// 9. Dashboard component
-const Dashboard = ({ transactions, loans, accounts, declaredAmount, manualCheck }) => {
-  const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
-  
-  const { totalIncome, totalExpense } = useMemo(() => {
-    const income = transactions
-      .filter((tx) => tx.type === "income")
-      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-    const expense = transactions
-      .filter((tx) => tx.type === "expense")
-      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-    return { totalIncome: income, totalExpense: expense };
-  }, [transactions]);
+  const del = () => { setDigits(d=>d.slice(0,-1)); setErr(""); };
 
-  const totalTracked = useMemo(() => {
-    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  }, [accountBalances]);
-
-  const { pendingGave, pendingTook } = useMemo(() => {
-    const gave = loans
-      .filter((loan) => loan.type === "gave" && loan.status === "pending")
-      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
-    const took = loans
-      .filter((loan) => loan.type === "took" && loan.status === "pending")
-      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
-    return { pendingGave: gave, pendingTook: took };
-  }, [loans]);
-
-  const declaredDiff = (declaredAmount || 0) - totalTracked;
-  const manualDiff = (manualCheck || 0) - totalTracked;
-
-  const recentTransactions = [...transactions]
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 4);
+  const title = mode==="verify" ? "Enter PIN"
+    : step==="enter" ? "Set New PIN" : "Confirm PIN";
+  const sub = mode==="verify" ? "Enter your 4-digit PIN to continue"
+    : step==="enter" ? "Choose a 4-digit PIN" : "Re-enter your PIN to confirm";
 
   return (
-    <div style={{ backgroundColor: T.surface, minHeight: "100vh" }}>
+    <div style={{position:"fixed",inset:0,background:G.header,zIndex:999,
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"white",fontFamily:THEME.font.body}}>
+      <div style={{width:64,height:64,borderRadius:20,background:T.glass,border:`1px solid ${T.glassBorder}`,
+        display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,marginBottom:18}}>🔒</div>
+      <div style={{fontSize:19,fontWeight:700,marginBottom:6,fontFamily:THEME.font.money}}>{title}</div>
+      <div style={{fontSize:13,opacity:.65,marginBottom:32,textAlign:"center",padding:"0 40px"}}>{sub}</div>
+      <div style={{display:"flex",gap:14,marginBottom:4}}>
+        {[0,1,2,3].map(i=>(
+          <div key={i} style={{width:14,height:14,borderRadius:"50%",
+            background:i<digits.length?T.gold:"rgba(255,255,255,0.25)",
+            boxShadow:i<digits.length?`0 0 10px ${T.gold}`:"none",
+            transition:"background .15s, box-shadow .15s"}}/>
+        ))}
+      </div>
+      <div style={{height:24,display:"flex",alignItems:"center",marginBottom:8}}>
+        {err && <div style={{fontSize:12,color:T.expense}}>{err}</div>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,72px)",gap:16}}>
+        {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((k,i)=>(
+          k==="" ? <div key={i}/> :
+          <button key={i} onClick={()=>k==="⌫"?del():tap(String(k))} style={{
+            width:72,height:72,borderRadius:"50%",border:`1px solid ${T.glassBorder}`,cursor:"pointer",fontFamily:THEME.font.body,
+            background:k==="⌫"?"rgba(255,255,255,0.08)":T.glass,
+            color:"white",fontSize:k==="⌫"?20:24,fontWeight:700,
+            backdropFilter:"blur(6px)"
+          }}>{k}</button>
+        ))}
+      </div>
+      {onCancel && (
+        <button onClick={onCancel} style={{marginTop:28,background:"none",border:"none",
+          color:"rgba(255,255,255,0.55)",fontSize:14,cursor:"pointer",fontFamily:THEME.font.body}}>Cancel</button>
+      )}
+    </div>
+  );
+}
+
+// ─── BALANCE CALCULATOR (shared logic) ───────────────────────────────────────
+function calcAccountBalances(accounts, transactions) {
+  return accounts.map(acc => {
+    const income   = transactions.filter(t=>t.type==="income"  && t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const expense  = transactions.filter(t=>t.type==="expense" && t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const tOut     = transactions.filter(t=>t.type==="transfer"&& t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const tIn      = transactions.filter(t=>t.type==="transfer"&& t.toAccount===acc.name).reduce((s,t)=>s+t.amount,0);
+    return { ...acc, balance: acc.opening + income - expense - tOut + tIn };
+  });
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function Dashboard({ transactions, setTransactions, loans, accounts, openingBalance, declaredAmount, manualCheck, notifyEnabled, onOpenSettings }) {
+  const [selectedTx, setSelectedTx] = useState(null);
+  const deleteTx = (id) => setTransactions(prev=>prev.filter(t=>t.id!==id));
+
+  // Totals — transfers excluded from income/expense counters.
+  // Only count transactions whose account still exists, so these totals
+  // stay consistent with Total Available (which only sums existing accounts).
+  const validAccountNames = new Set(accounts.map(a=>a.name));
+  const totalIncome  = transactions.filter(t=>t.type==="income"  && validAccountNames.has(t.account)).reduce((s,t)=>s+t.amount,0);
+  const totalExpense = transactions.filter(t=>t.type==="expense" && validAccountNames.has(t.account)).reduce((s,t)=>s+t.amount,0);
+
+  // Per-account live balances
+  const accountBalances = calcAccountBalances(accounts, transactions);
+
+  // Total tracked = all account balances + global opening balance
+  const totalTracked = accountBalances.reduce((s,a)=>s+a.balance,0) + openingBalance;
+
+  // Declared diff: positive = untracked money, negative = you've tracked more than declared
+  const declaredDiff = declaredAmount - totalTracked;
+
+  // Manual check diff: positive = your physical count > app = you have MORE, negative = you have LESS
+  const manualDiff = manualCheck - totalTracked;
+
+  const recent = sortByDateDesc(transactions).slice(0,4);
+  const loggedToday = transactions.some(t=>t.date===todayStr());
+  const showReminder = notifyEnabled && !loggedToday;
+
+  const txColor = (t) => t.type==="income" ? T.income : t.type==="transfer" ? "#9F8AE8" : T.expense;
+  const txBg    = (t) => t.type==="income" ? T.incomeSoft : t.type==="transfer" ? T.transferSoft : T.expenseSoft;
+  const txPrefix= (t) => t.type==="income" ? "+" : t.type==="transfer" ? "⇄" : "−";
+
+  return (
+    <div>
       {/* Header */}
-      <div style={{ background: T.headerGrad, padding: "32px 20px 76px", color: "white", borderRadius: "0 0 32px 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{background:G.header,padding:"24px 16px 60px",color:"white",borderRadius:`0 0 ${R.xxl}px ${R.xxl}px`,boxShadow:SH.raised,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,199,126,0.18),transparent 70%)"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22,position:"relative"}}>
           <div>
-            <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
-            <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px" }}>My Finance</div>
+            <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>{monthYearStr()}</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:THEME.font.money,marginTop:2}}>My Finance</div>
           </div>
-          <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: T.glass, border: `1px solid ${T.glassBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>👤</div>
+          <button onClick={onOpenSettings} style={{width:40,height:40,borderRadius:14,background:T.glass,border:`1px solid ${T.glassBorder}`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",padding:0}}>⚙️</button>
         </div>
 
-        {/* Balance Card — glassmorphism */}
-        <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, marginTop: "22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-          <div style={{ fontSize: "11px", opacity: 0.6, letterSpacing: "1px", fontWeight: 600, marginBottom: "6px" }}>TOTAL AVAILABLE</div>
-          <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: "40px", fontWeight: 800, letterSpacing: "-1.5px", color: totalTracked >= 0 ? "#7EFFC5" : "#FF9E9E", lineHeight: 1 }}>
+        {/* Big balance card — glassmorphism */}
+        <div style={{background:T.glassStrong,borderRadius:R.xl,padding:"16px 18px",border:`1px solid ${T.glassBorder}`,
+          backdropFilter:"blur(14px)",position:"relative",boxShadow:SH.glow}}>
+          <div style={{fontSize:12,opacity:.65,marginBottom:5,fontWeight:600,letterSpacing:.3}}>Total Available</div>
+          <div style={{fontSize:32,fontWeight:600,letterSpacing:-0.5,color:totalTracked>=0?T.mint:"#FCA5A5",fontFamily:THEME.font.money}}>
             {fmt(totalTracked)}
           </div>
-          <div style={{ display: "flex", marginTop: "18px", gap: "0" }}>
-            <div style={{ flex: 1, borderRight: "1px solid rgba(255,255,255,0.15)", paddingRight: "16px" }}>
-              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>↑ INCOME</div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: "#5EE89A", marginTop: "3px" }}>{fmt(totalIncome)}</div>
+          {openingBalance>0&&<div style={{fontSize:11,opacity:.5,marginTop:3}}>Includes {fmt(openingBalance)} opening balance</div>}
+          <div style={{display:"flex",marginTop:16}}>
+            <div style={{flex:1,borderRight:`1px solid ${T.glassBorder}`,paddingRight:14}}>
+              <div style={{fontSize:11,opacity:.6,marginBottom:3,fontWeight:600}}>↑ INCOME</div>
+              <div style={{fontSize:15,fontWeight:700,color:T.mint}}>{fmt(totalIncome)}</div>
             </div>
-            <div style={{ flex: 1, paddingLeft: "16px" }}>
-              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>↓ EXPENSE</div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: "#FF8A8A", marginTop: "3px" }}>{fmt(totalExpense)}</div>
+            <div style={{flex:1,paddingLeft:14}}>
+              <div style={{fontSize:11,opacity:.6,marginBottom:3,fontWeight:600}}>↓ EXPENSE</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#FCA5A5"}}>{fmt(totalExpense)}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ padding: "0 16px", marginTop: "-40px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
-        {/* Accounts card */}
-        {accounts.length > 0 && (
-          <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: T.textPrimary, marginBottom: "14px", letterSpacing: "0.2px" }}>🏦 My Accounts</div>
-            {accountBalances.map((account) => (
-              <div key={account.id} style={{ display: "flex", gap: "12px", marginBottom: "12px", alignItems: "center" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "13px", backgroundColor: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>{account.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "14px", fontWeight: 700, color: T.textPrimary }}>{account.name}</div>
-                  <div style={{ fontSize: "11px", color: T.textMuted, marginTop: "1px" }}>{account.type}</div>
+      <div style={{padding:"0 12px",marginTop:-24}}>
+
+        {showReminder && (
+          <div style={{background:THEME.colors.goldSoft,borderRadius:R.lg,padding:"12px 14px",
+            marginBottom:14,boxShadow:SH.card,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:20}}>🔔</span>
+            <div style={{fontSize:12,color:"#946A1F",fontWeight:600,flex:1}}>
+              You haven't logged anything today — tap + to add a transaction.
+            </div>
+          </div>
+        )}
+
+        {/* Accounts */}
+        {accountBalances.length>0&&(
+          <div style={{background:T.card,borderRadius:R.lg,padding:"13px",marginBottom:14,boxShadow:SH.card}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13,letterSpacing:.2}}>🏦 My Accounts</div>
+            {accountBalances.map(acc=>(
+              <div key={acc.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                <div style={{width:40,height:40,borderRadius:R.sm,background:T.bgSoft,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{acc.icon}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{acc.name}</div>
+                  <div style={{fontSize:11,color:T.inkSoft}}>{acc.type}</div>
                 </div>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: account.balance >= 0 ? T.tealDark : T.red }}>{fmt(account.balance)}</div>
+                <div style={{fontSize:15,fontWeight:800,color:acc.balance>=0?T.teal700:T.expense,fontFamily:THEME.font.money}}>{fmt(acc.balance)}</div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Loan Snapshot */}
-        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
-          <div style={{ flex: 1, backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", boxShadow: T.shadowCard, borderTop: `3px solid ${T.green}` }}>
-            <div style={{ fontSize: "11px", color: T.textSecondary, marginBottom: "5px", fontWeight: 600 }}>🟢 They owe me</div>
-            <div style={{ fontSize: "18px", fontWeight: 800, color: T.green }}>{fmt(pendingGave)}</div>
-          </div>
-          <div style={{ flex: 1, backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", boxShadow: T.shadowCard, borderTop: `3px solid ${T.red}` }}>
-            <div style={{ fontSize: "11px", color: T.textSecondary, marginBottom: "5px", fontWeight: 600 }}>🔴 I owe them</div>
-            <div style={{ fontSize: "18px", fontWeight: 800, color: T.red }}>{fmt(pendingTook)}</div>
-          </div>
-        </div>
+        {/* Wealth Overview (declared vs tracked) */}
+        {declaredAmount>0&&(()=>{
+          const isOver     = declaredDiff < 0;
+          const isBalanced = declaredDiff === 0;
+          const resColor   = isBalanced?T.income:isOver?T.gold:T.expense;
+          return (
+            <div style={{background:T.card,borderRadius:R.lg,padding:"13px",marginBottom:14,boxShadow:SH.card}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>💼 Wealth Overview</div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <div style={{fontSize:13,color:T.inkSoft}}>Declared Total</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.teal700}}>{fmt(declaredAmount)}</div>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{fontSize:13,color:T.inkSoft}}>Currently Tracked</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.teal500}}>{fmt(totalTracked)}</div>
+              </div>
+              <div style={{height:1,background:T.line,marginBottom:10}}/>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <div style={{fontSize:13,fontWeight:600,color:resColor}}>
+                  {isBalanced?"✓ Balanced":isOver?"▲ More tracked than declared":"▼ Untracked amount"}
+                </div>
+                <div style={{fontSize:15,fontWeight:800,color:resColor,fontFamily:THEME.font.money}}>
+                  {isBalanced?"Balanced":`${fmt(Math.abs(declaredDiff))} ${isOver?"over":"missing"}`}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
-        {/* Wealth Overview card */}
-        {declaredAmount > 0 && (
-          <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                marginBottom: "12px",
-              }}
-            >
-              💼 Wealth Overview
+        {/* Manual Check */}
+        {manualCheck>0&&(()=>{
+          const isMore    = manualDiff > 0;
+          const isLess    = manualDiff < 0;
+          const isExact   = manualDiff === 0;
+          const topColor  = isExact?T.income:isMore?T.gold:T.expense;
+          return (
+            <div style={{background:T.card,borderRadius:R.lg,padding:"13px",marginBottom:14,
+              boxShadow:SH.card,borderTop:`3px solid ${topColor}`}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>🔎 Manual Check</div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <div style={{fontSize:13,color:T.inkSoft}}>App Calculated</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.teal700}}>{fmt(totalTracked)}</div>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{fontSize:13,color:T.inkSoft}}>Your Count</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.teal500}}>{fmt(manualCheck)}</div>
+              </div>
+              <div style={{height:1,background:T.line,marginBottom:10}}/>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <div style={{fontSize:13,fontWeight:700,color:topColor}}>
+                  {isExact?"✓ Perfect Match":isMore?"▲ You counted more":"▼ You counted less"}
+                </div>
+                <div style={{fontSize:15,fontWeight:800,color:topColor,fontFamily:THEME.font.money}}>
+                  {isExact?"Balanced":`${fmt(Math.abs(manualDiff))} ${isMore?"extra":"short"}`}
+                </div>
+              </div>
+              {!isExact&&(
+                <div style={{marginTop:8,padding:"9px 11px",borderRadius:R.sm,fontSize:12,
+                  background:isMore?THEME.colors.goldSoft:T.expenseSoft,color:isMore?"#946A1F":T.expense}}>
+                  {isMore
+                    ?"You physically have more than the app calculated. You may have missed recording some income."
+                    :"You physically have less than the app calculated. You may have missed recording some expense."}
+                </div>
+              )}
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "8px",
-              }}
-            >
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E3A5F" }}>
-                Declared Total
-              </div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E3A5F" }}>
-                {fmt(declaredAmount)}
-              </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "10px",
-              }}
-            >
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#2D6A9F" }}>
-                Currently Tracked
-              </div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#2D6A9F" }}>
-                {fmt(totalTracked)}
-              </div>
-            </div>
-            <div
-              style={{
-                borderBottom: "1px solid #F0F0F0",
-                marginBottom: "10px",
-              }}
-            ></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              {
-                declaredDiff > 0 ? (
-                  <>
-                    <div style={{ color: "#E53E3E" }}>▼ Untracked amount</div>
-                    <div
-                      style={{
-                        color: "#E53E3E",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {fmt(Math.abs(declaredDiff))} missing
-                    </div>
-                  </>
-                ) : declaredDiff < 0 ? (
-                  <>
-                    <div style={{ color: "#E07B54" }}>
-                      ▲ More tracked than declared
-                    </div>
-                    <div
-                      style={{
-                        color: "#E07B54",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {fmt(Math.abs(declaredDiff))} over
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ color: "#1DB954" }}>✓ Balanced</div>
-                    <div
-                      style={{
-                        color: "#1DB954",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      Balanced
-                    </div>
-                  </>
-                )
-              }
-            </div>
-          </div>
-        )}
-
-        {/* Manual Check card */}
-        {manualCheck > 0 && (
-          <div
-            style={{
-              backgroundColor: T.surfaceCard,
-              borderRadius: T.r20,
-              padding: "18px",
-              marginBottom: "14px",
-              boxShadow: T.shadowCard,
-              borderTop:
-                manualDiff === 0
-                  ? "3px solid #1DB954"
-                  : manualDiff > 0
-                  ? "3px solid #E07B54"
-                  : "3px solid #E53E3E",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                marginBottom: "12px",
-              }}
-            >
-              🔎 Manual Check
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "8px",
-              }}
-            >
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E3A5F" }}>
-                App Calculated
-              </div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#1E3A5F" }}>
-                {fmt(totalTracked)}
-              </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "10px",
-              }}
-            >
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#2D6A9F" }}>
-                Your Count
-              </div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "#2D6A9F" }}>
-                {fmt(manualCheck)}
-              </div>
-            </div>
-            <div
-              style={{
-                borderBottom: "1px solid #F0F0F0",
-                marginBottom: "10px",
-              }}
-            ></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              {
-                manualDiff > 0 ? (
-                  <>
-                    <div style={{ color: "#E07B54" }}>▲ You counted more</div>
-                    <div
-                      style={{
-                        color: "#E07B54",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {fmt(Math.abs(manualDiff))} extra
-                    </div>
-                  </>
-                ) : manualDiff < 0 ? (
-                  <>
-                    <div style={{ color: "#E53E3E" }}>▼ You counted less</div>
-                    <div
-                      style={{
-                        color: "#E53E3E",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {fmt(Math.abs(manualDiff))} short
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ color: "#1DB954" }}>✓ Perfect Match</div>
-                    <div
-                      style={{
-                        color: "#1DB954",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      Balanced
-                    </div>
-                  </>
-                )
-              }
-            </div>
-            {manualDiff !== 0 && (
-              <div
-                style={{
-                  marginTop: "8px",
-                  padding: "8px 10px",
-                  borderRadius: "10px",
-                  fontSize: "12px",
-                  backgroundColor: manualDiff > 0 ? "#FFF8F0" : "#FFF5F5",
-                  color: manualDiff > 0 ? "#E07B54" : "#E53E3E",
-                }}
-              >
-                {manualDiff > 0
-                  ? "You physically have more than the app calculated. You may have missed recording some income."
-                  : "You physically have less than the app calculated. You may have missed recording some expense."}
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Recent Transactions */}
-        <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "80px", boxShadow: T.shadowCard }}>
-          <div
-            style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              marginBottom: "12px",
-            }}
-          >
-            Recent Transactions
-          </div>
-          {recentTransactions.length === 0 ? (
-            <div style={{ textAlign: "center", color: "#CCC" }}>
-              No transactions yet
-            </div>
-          ) : (
-            recentTransactions.map((tx, index) => (
-              <div
-                key={tx.id}
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  marginBottom: "12px",
-                  alignItems: "center",
-                  borderBottom:
-                    index < recentTransactions.length - 1
-                      ? "1px solid #F5F5F5"
-                      : "none",
-                  paddingBottom: "12px",
-                }}
-              >
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "12px",
-                    backgroundColor:
-                      tx.type === "income"
-                        ? "#E8FBF0"
-                        : tx.type === "expense"
-                        ? "#FFF0F0"
-                        : "#F3EEFF",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "18px",
-                  }}
-                >
-                  {tx.icon}
+        <div style={{background:T.card,borderRadius:R.lg,padding:"13px",boxShadow:SH.card}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>Recent Transactions</div>
+          {recent.length===0&&<div style={{textAlign:"center",color:"#C8D6D2",padding:"20px 0",fontSize:13}}>No transactions yet</div>}
+          {recent.map(t=>(
+            <div key={t.id} onClick={()=>setSelectedTx(t)} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,cursor:"pointer"}}>
+              <div style={{width:40,height:40,borderRadius:R.sm,background:txBg(t),
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}
                 </div>
-                <div style={{ flex: 1, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: "#222",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {tx.type === "transfer"
-                      ? `${tx.account} → ${tx.toAccount}`
-                      : tx.category}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#AAA" }}>
-                    {tx.type === "transfer"
-                      ? "Transfer"
-                      : tx.note || tx.account}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    flexShrink: 0,
-                    color:
-                      tx.type === "income"
-                        ? "#1DB954"
-                        : tx.type === "expense"
-                        ? "#E53E3E"
-                        : "#7B5EA7",
-                  }}
-                >
-                  {tx.type === "expense" && "-"}
-                  {tx.type === "transfer" && "⇄"}
-                  {fmt(tx.amount)}
+                <div style={{fontSize:11,color:T.inkSoft,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {t.type==="transfer"
+                    ? "Transfer"
+                    : t.account + (t.note ? ` · ${t.note}` : "")}
+                  {fmtTime(t.createdAt) ? ` · ${fmtTime(t.createdAt)}` : ""}
                 </div>
               </div>
-            ))
-          )}
+              <div style={{fontSize:15,fontWeight:700,color:txColor(t),flexShrink:0,fontFamily:THEME.font.money}}>
+                {txPrefix(t)}{fmt(t.amount)}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx}/>
     </div>
   );
-};
+}
 
-// 10. EMPTY_TX constant + Transactions component
-const EMPTY_TX = () => ({
-  type: "expense",
-  category: "",
-  icon: "📦",
-  amount: "",
-  note: "",
-  date: todayStr(),
-  account: "",
-  toAccount: "",
-  method: "",
-});
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:""};
 
-const Transactions = ({ transactions, setTransactions, accounts }) => {
-  const [search, setSearch] = useState("");
+function Transactions({ transactions, setTransactions, accounts }) {
+  const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
-  const [form, setForm] = useState(EMPTY_TX());
-  const [editId, setEditId] = useState(null);
-  const [delId, setDelId] = useState(null);
+  const [form, setForm]           = useState(EMPTY_TX);
+  const [selectedTx, setSelectedTx] = useState(null);
 
-  const accountNames = accounts.map((acc) => acc.name);
+  const deleteTx = (id) => setTransactions(prev=>prev.filter(t=>t.id!==id));
 
-  const handleSearch = useCallback((e) => {
-    const value = e.target.value;
-    setSearch(value);
-    if (value.trim().toLowerCase() === "create") {
-      setTimeout(() => {
-        setSearch("");
-        setForm(EMPTY_TX());
-        setShowSheet(true);
-      }, 200);
+  const handleSearch = (e) => {
+    const v = e.target.value;
+    setSearch(v);
+    if (v.trim().toLowerCase() === "create") {
+      setTimeout(()=>{ setSearch(""); setForm(EMPTY_TX); setShowSheet(true); }, 200);
     }
-  }, []);
+  };
 
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
-      if (!search) return true;
-      const s = search.toLowerCase();
-      return (
-        (tx.category || "").toLowerCase().includes(s) ||
-        (tx.note || "").toLowerCase().includes(s) ||
-        (tx.account || "").toLowerCase().includes(s) ||
-        ((tx.toAccount || "").toLowerCase().includes(s))
-      );
-    });
-  }, [transactions, search]);
-
-  const groupedTransactions = useMemo(() => {
-    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-    return sorted.reduce((acc, tx) => {
-      const dateLabel = tx.date === todayStr() ? "Today" : tx.date === yesterdayStr() ? "Yesterday" : tx.date;
-      if (!acc[dateLabel]) {
-        acc[dateLabel] = [];
-      }
-      acc[dateLabel].push(tx);
-      return acc;
-    }, {});
-  }, [filteredTransactions]);
-
-  const handleSave = useCallback(() => {
-    const amount = parseFloat(form.amount);
-    if (!form.amount || amount <= 0) {
-      alert("Please enter a valid amount");
-      return;
-    }
-
-    let newTx;
-    if (form.type === "transfer") {
-      if (!form.account || !form.toAccount || form.account === form.toAccount) {
-        alert("Please select different accounts");
-        return;
-      }
-      newTx = {
-        id: editId || Date.now(),
-        type: "transfer",
-        category: "Transfer",
-        icon: "⇄",
-        amount: amount,
-        note: form.note,
-        date: form.date,
-        account: form.account,
-        toAccount: form.toAccount,
-        method: "",
-      };
-    } else {
-      if (!form.category || !form.account) {
-        alert("Please fill all required fields");
-        return;
-      }
-      const categoryIcon = TX_CATS[form.type].find(cat => cat.l === form.category)?.icon || "📦";
-      newTx = {
-        ...form,
-        id: editId || Date.now(),
-        amount: amount,
-        icon: categoryIcon,
-        toAccount: "",
-      };
-    }
-    if (editId) {
-      setTransactions((prev) => prev.map((tx) => tx.id === editId ? newTx : tx));
-    } else {
-      setTransactions((prev) => [newTx, ...prev]);
-    }
-    setShowSheet(false);
-    setEditId(null);
-    setForm(EMPTY_TX());
-  }, [form, editId, setTransactions]);
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ background: T.headerGrad, padding: "32px 20px 20px", color: "white", borderRadius: "0 0 28px 28px" }}>
-        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
-        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "16px" }}>Transactions</div>
-        <SearchBar value={search} onChange={handleSearch} onClear={() => setSearch("")} />
-      </div>
-
-      {/* List area */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
-        {Object.keys(groupedTransactions).length === 0 ? (
-          <div style={{ textAlign: "center", color: "#CCC", padding: "40px 0" }}>
-            {search ? "🔍 No results found" : "No transactions yet"}
-          </div>
-        ) : (
-          Object.entries(groupedTransactions).map(([dateLabel, txs]) => (
-            <div key={dateLabel} style={{ marginBottom: "20px" }}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "#999",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  marginBottom: "8px",
-                }}
-              >
-                {dateLabel}
-              </div>
-              <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "4px 14px", boxShadow: T.shadowCard }}>
-                {txs.map((tx, index) => (
-                  <div key={tx.id} style={{ borderBottom: index < txs.length - 1 ? "1px solid #F5F5F5" : "none", padding: "12px 0" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "12px",
-                        alignItems: "center",
-                      }}
-                    >
-                    <div
-                      style={{
-                        width: "42px",
-                        height: "42px",
-                        borderRadius: "13px",
-                        backgroundColor:
-                          tx.type === "income"
-                            ? "#E8FBF0"
-                            : tx.type === "expense"
-                            ? "#FFF0F0"
-                            : "#F3EEFF",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "20px",
-                      }}
-                    >
-                      {tx.icon}
-                    </div>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          color: "#222",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {tx.type === "transfer"
-                          ? `${tx.account} → ${tx.toAccount}`
-                          : tx.category}
-                      </div>
-                      <div style={{ fontSize: "11px", color: "#AAA" }}>
-                        {tx.type === "transfer"
-                          ? "Transfer"
-                          : `${tx.account} · ${tx.method}`}
-                      </div>
-                      {tx.note && tx.type !== "transfer" && (
-                        <div style={{ fontSize: "11px", color: "#BBB" }}>
-                          {tx.note}
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        fontWeight: 700,
-                        flexShrink: 0,
-                        color:
-                          tx.type === "income"
-                            ? "#1DB954"
-                            : tx.type === "expense"
-                            ? "#E53E3E"
-                            : "#7B5EA7",
-                      }}
-                    >
-                      {tx.type === "expense" && "-"}
-                      {tx.type === "transfer" && "⇄"}
-                      {fmt(tx.amount)}
-                    </div>
-                    <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                      <button onClick={() => { setForm({ ...tx, amount: String(tx.amount) }); setEditId(tx.id); setShowSheet(true); }}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", padding: "4px" }}>✏️</button>
-                      <button onClick={() => setDelId(delId === tx.id ? null : tx.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", padding: "4px" }}>🗑</button>
-                    </div>
-                  </div>
-                  {delId === tx.id && (
-                    <div style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFE8E8", borderRadius: "12px", padding: "12px", marginTop: "8px", textAlign: "center" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#E53E3E", marginBottom: "8px" }}>Delete this transaction?</div>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <FBtn outline color="#999" onClick={() => setDelId(null)} style={{ flex: 1, padding: "8px", fontSize: "12px" }}>Cancel</FBtn>
-                        <FBtn bg="#E53E3E" onClick={() => { setTransactions(prev => prev.filter(t => t.id !== tx.id)); setDelId(null); }} style={{ flex: 1, padding: "8px", fontSize: "12px" }}>Delete</FBtn>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* FAB */}
-      <button className="mm-btn" onClick={() => { setForm(EMPTY_TX()); setEditId(null); setShowSheet(true); }}
-        style={{ position: "fixed", bottom: "90px", right: "calc(50% - 210px + 16px)", width: "58px", height: "58px", borderRadius: "50%", background: T.btnGrad, color: "white", fontSize: "30px", border: "none", boxShadow: `0 6px 22px rgba(46,196,182,0.45)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 300 }}
-      >+</button>
-
-      {/* Add Transaction Sheet */}
-      <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
-        <div style={{ padding: "0 16px" }}>
-          <h3 style={{ marginTop: 0, marginBottom: "20px", fontSize: "18px", fontWeight: 700 }}>
-            {editId ? "Edit Transaction" : "Add Transaction"}
-          </h3>
-          <TypeToggle
-            options={[
-              ["expense", "↓ Expense"],
-              ["income", "↑ Income"],
-              ["transfer", "⇄ Transfer"],
-            ]}
-            value={form.type}
-            onChange={(type) => setForm({ ...EMPTY_TX(), type })}
-            colors={{
-              expense: "#E53E3E",
-              income: "#1DB954",
-              transfer: "#7B5EA7",
-            }}
-          />
-
-          {form.type === "transfer" ? (
-            <>
-              <Label>AMOUNT</Label>
-              <FInput
-                type="number"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                style={{ fontSize: "20px", fontWeight: 800, marginBottom: "12px" }}
-              />
-              <Label>FROM ACCOUNT</Label>
-              {accountNames.length === 0 ? (
-                <div style={{ backgroundColor: "#FFF8F0", color: "#E07B54", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", marginBottom: "12px" }}>
-                  Please add an account in Settings.
-                </div>
-              ) : (
-                <ChipRow
-                  items={accountNames}
-                  value={form.account}
-                  onChange={(acc) => setForm({ ...form, account: acc })}
-                  activeColor="#7B5EA7"
-                  activeBg="#F3EEFF"
-                />
-              )}
-              <div style={{ textAlign: "center", fontSize: "20px", color: "#7B5EA7", margin: "10px 0" }}>
-                ⬇
-              </div>
-              <Label>TO ACCOUNT</Label>
-              {accountNames.length === 0 ? (
-                <div style={{ backgroundColor: "#FFF8F0", color: "#E07B54", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", marginBottom: "12px" }}>
-                  Please add an account in Settings.
-                </div>
-              ) : (
-                <ChipRow
-                  items={accountNames.filter((name) => name !== form.account)}
-                  value={form.toAccount}
-                  onChange={(acc) => setForm({ ...form, toAccount: acc })}
-                  activeColor="#7B5EA7"
-                  activeBg="#F3EEFF"
-                />
-              )}
-              <Label>NOTE (OPTIONAL)</Label>
-              <FInput
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                style={{ marginBottom: "12px" }}
-              />
-              <Label>DATE</Label>
-              <FInput
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                style={{ marginBottom: "20px" }}
-              />
-              <FBtn onClick={handleSave}>Save Transfer</FBtn>
-            </>
-          ) : (
-            <>
-              <Label>AMOUNT</Label>
-              <FInput
-                type="number"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                style={{ fontSize: "20px", fontWeight: 800, marginBottom: "12px" }}
-              />
-              <Label>CATEGORY</Label>
-              <ChipRow
-                items={TX_CATS[form.type]}
-                value={form.category}
-                onChange={(cat) =>
-                  setForm({
-                    ...form,
-                    category: cat,
-                    icon: TX_CATS[form.type].find((c) => c.l === cat)?.icon || "📦",
-                  })
-                }
-                activeColor={form.type === "income" ? "#1DB954" : "#E53E3E"}
-                activeBg={form.type === "income" ? "#E8FBF0" : "#FFF0F0"}
-              />
-              <Label>
-                {form.type === "income" ? "RECEIVED IN" : "PAID FROM"}
-              </Label>
-              {accountNames.length === 0 ? (
-                <div style={{ backgroundColor: "#FFF8F0", color: "#E07B54", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", marginBottom: "12px" }}>
-                  Please add an account in Settings.
-                </div>
-              ) : (
-                <ChipRow
-                  items={accountNames}
-                  value={form.account}
-                  onChange={(acc) => setForm({ ...form, account: acc })}
-                  activeColor={form.type === "income" ? "#1DB954" : "#E53E3E"}
-                  activeBg={form.type === "income" ? "#E8FBF0" : "#FFF0F0"}
-                />
-              )}
-              <Label>HOW</Label>
-              <ChipRow
-                items={form.type === "income" ? INCOME_METHODS : EXPENSE_METHODS}
-                value={form.method}
-                onChange={(method) => setForm({ ...form, method: method })}
-                activeColor={form.type === "income" ? "#1DB954" : "#E53E3E"}
-                activeBg={form.type === "income" ? "#E8FBF0" : "#FFF0F0"}
-              />
-              <Label>NOTE (OPTIONAL)</Label>
-              <FInput
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                style={{ marginBottom: "12px" }}
-              />
-              <Label>DATE</Label>
-              <FInput
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                style={{ marginBottom: "20px" }}
-              />
-              <FBtn onClick={handleSave}>Save {form.type}</FBtn>
-            </>
-          )}
-        </div>
-      </Sheet>
-    </div>
-  );
-};
-
-// 11. EMPTY_LOAN constant + Loans component
-const EMPTY_LOAN = {
-  type: "took",
-  name: "",
-  amount: "",
-  reason: "",
-  date: todayStr(),
-  status: "pending",
-};
-
-const Loans = ({ loans, setLoans }) => {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [showSheet, setShowSheet] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState(EMPTY_LOAN);
-  const [delId, setDelId] = useState(null);
-
-  const { totalTook, totalGave, net } = useMemo(() => {
-    const took = loans
-      .filter((loan) => loan.type === "took" && loan.status === "pending")
-      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
-    const gave = loans
-      .filter((loan) => loan.type === "gave" && loan.status === "pending")
-      .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
-    return { totalTook: took, totalGave: gave, net: gave - took };
-  }, [loans]);
-
-  const handleSearch = useCallback((e) => {
-    const value = e.target.value;
-    setSearch(value);
-    if (value.trim().toLowerCase() === "create") {
-      setTimeout(() => {
-        setSearch("");
-        setForm(EMPTY_LOAN);
-        setEditId(null);
-        setShowSheet(true);
-      }, 200);
-    }
-  }, []);
-
-  const visibleLoans = useMemo(() => {
-    return loans
-      .filter((loan) => {
-        if (filter === "took" && loan.type !== "took") return false;
-        if (filter === "gave" && loan.type !== "gave") return false;
-        if (!search) return true;
-        const s = search.toLowerCase();
-        return ((loan.name || "").toLowerCase().includes(s) || (loan.reason || "").toLowerCase().includes(s));
-      })
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [loans, filter, search]);
-
-  const handleSaveLoan = useCallback(() => {
-    const amount = parseFloat(form.amount);
-    if (!form.name || !form.amount || amount <= 0) {
-      alert("Please fill all required fields with valid amount");
-      return;
-    }
-
-    const newLoan = {
-      ...form,
-      amount: amount,
-      id: editId || Date.now(),
-    };
-
-    if (editId) {
-      setLoans((prev) => prev.map((loan) => (loan.id === editId ? newLoan : loan)));
-    } else {
-      setLoans((prev) => [newLoan, ...prev]);
-    }
-    setShowSheet(false);
-    setEditId(null);
-    setForm(EMPTY_LOAN);
-  }, [form, editId, setLoans]);
-
-  const toggleStatus = useCallback((id) => {
-    setLoans((prev) =>
-      prev.map((loan) =>
-        loan.id === id
-          ? { ...loan, status: loan.status === "pending" ? "returned" : "pending" }
-          : loan
-      )
-    );
-  }, [setLoans]);
-
-  const removeLoan = useCallback((id) => {
-    setLoans((prev) => prev.filter((loan) => loan.id !== id));
-    setDelId(null);
-  }, [setLoans]);
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ background: T.headerGrad, padding: "32px 20px 20px", color: "white", borderRadius: "0 0 28px 28px" }}>
-        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>{currentMonthYear()}</div>
-        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "16px" }}>Loans</div>
-
-        {/* Net Position Card */}
-        <div style={{ background: T.glass, borderRadius: T.r20, padding: "16px 20px", border: `1px solid ${T.glassBorder}`, marginBottom: "14px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-          <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>NET POSITION</div>
-          <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: "30px", fontWeight: 800, letterSpacing: "-1px", color: net >= 0 ? "#7EFFC5" : "#FF9E9E", marginTop: "4px" }}>{net >= 0 && "+"}{fmt(net)}</div>
-          <div style={{ display: "flex", gap: "24px", marginTop: "12px" }}>
-            <div>
-              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>🔴 I OWE</div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: "#FF8A8A", marginTop: "2px" }}>{fmt(totalTook)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "1px", fontWeight: 600 }}>🟢 THEY OWE</div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: "#5EE89A", marginTop: "2px" }}>{fmt(totalGave)}</div>
-            </div>
-          </div>
-        </div>
-
-        <SearchBar value={search} onChange={handleSearch} onClear={() => setSearch("")} />
-      </div>
-
-      {/* Content */}
-      <div style={{ padding: "14px 16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
-        {/* Filter tabs */}
-        <div style={{ display: "flex", backgroundColor: T.surfaceCard, borderRadius: T.r16, padding: "4px", boxShadow: T.shadowCard, gap: "4px", marginBottom: "14px" }}>
-          {[["all", "All"], ["took", "🔴 I Took"], ["gave", "🟢 I Gave"]].map(
-            ([filterValue, label]) => (
-              <button
-                key={filterValue}
-                onClick={() => setFilter(filterValue)}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  borderRadius: "10px",
-                  padding: "10px 4px",
-                  fontWeight: 700,
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  background:
-                    filter === filterValue
-                      ? "linear-gradient(135deg,#2D6A9F,#1E3A5F)"
-                      : "transparent",
-                  color: filter === filterValue ? "white" : "#888",
-                }}
-              >
-                {label}
-              </button>
-            )
-          )}
-        </div>
-
-        {visibleLoans.length === 0 ? (
-          <div style={{ textAlign: "center", color: "#CCC", padding: "40px 0" }}>
-            {search ? "📭 No results found" : "No loans here"}
-          </div>
-        ) : (
-          visibleLoans.map((loan) => (
-            <div key={loan.id} style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "16px", marginBottom: "12px", boxShadow: T.shadowCard, borderLeft: loan.type === "took" ? `4px solid ${T.red}` : `4px solid ${T.green}`, opacity: loan.status === "returned" ? 0.6 : 1 }}>
-              <div style={{ display: "flex", gap: "12px" }}>
-                <div
-                  style={{
-                    width: "46px",
-                    height: "46px",
-                    borderRadius: "50%",
-                    backgroundColor: avatarColor(loan.name),
-                    color: "white",
-                    fontWeight: 800,
-                    fontSize: "18px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {(loan.name || "?")[0].toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        fontWeight: 700,
-                        color: "#1A1A2E",
-                      }}
-                    >
-                      {loan.name}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "20px",
-                        backgroundColor:
-                          loan.status === "pending" ? "#FFF8F0" : "#E8FBF0",
-                        color: loan.status === "pending" ? "#E07B54" : "#1DB954",
-                      }}
-                    >
-                      {loan.status === "pending" ? "Pending" : "Returned"}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>
-                    {loan.reason}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#BBB", marginTop: "1px" }}>
-                    {loan.date}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{
-                      fontSize: "17px",
-                      fontWeight: 800,
-                      color: loan.type === "took" ? "#E53E3E" : "#1DB954",
-                    }}
-                  >
-                    {loan.type === "took" ? "-" : "+"}{fmt(loan.amount)}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#BBB" }}>
-                    {loan.type === "took" ? "I owe" : "They owe"}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  marginTop: "12px",
-                  paddingTop: "10px",
-                  borderTop: "1px solid #F5F5F5",
-                }}
-              >
-                <FBtn
-                  outline={loan.status === "pending"}
-                  bg={loan.status === "pending" ? "#E8FBF0" : "#F9F9F9"}
-                  color={loan.status === "pending" ? "#1DB954" : "#999"}
-                  onClick={() => toggleStatus(loan.id)}
-                  style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                >
-                  {loan.status === "pending" ? "✓ Settled" : "↩ Pending"}
-                </FBtn>
-                <FBtn
-                  outline
-                  bg="#F5F8FF"
-                  color="#2D6A9F"
-                  onClick={() => {
-                    setForm({ ...loan, amount: String(loan.amount) });
-                    setEditId(loan.id);
-                    setShowSheet(true);
-                  }}
-                  style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                >
-                  ✏️ Edit
-                </FBtn>
-                <FBtn
-                  outline
-                  bg="#FFF5F5"
-                  color="#E53E3E"
-                  onClick={() => setDelId(loan.id)}
-                  style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                >
-                  🗑
-                </FBtn>
-              </div>
-
-              {delId === loan.id && (
-                <div
-                  style={{
-                    backgroundColor: "#FFF5F5",
-                    border: "1px solid #FFE8E8",
-                    borderRadius: "12px",
-                    padding: "14px",
-                    marginTop: "12px",
-                    textAlign: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "#E53E3E",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    Delete this loan?
-                  </div>
-                  <div style={{ fontSize: "13px", color: "#999", marginBottom: "10px" }}>
-                    This cannot be undone.
-                  </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <FBtn
-                      outline
-                      color="#999"
-                      onClick={() => setDelId(null)}
-                      style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                    >
-                      Cancel
-                    </FBtn>
-                    <FBtn
-                      bg="#E53E3E"
-                      onClick={() => removeLoan(loan.id)}
-                      style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-                    >
-                      Delete
-                    </FBtn>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* FAB */}
-      <button className="mm-btn" onClick={() => { setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); }}
-        style={{ position: "fixed", bottom: "90px", right: "calc(50% - 210px + 16px)", width: "58px", height: "58px", borderRadius: "50%", background: T.btnGrad, color: "white", fontSize: "30px", border: "none", boxShadow: `0 6px 22px rgba(46,196,182,0.45)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 300 }}
-      >+</button>
-
-      {/* Add/Edit Loan Sheet */}
-      <Sheet show={showSheet} onClose={() => setShowSheet(false)}>
-        <div style={{ padding: "0 16px" }}>
-          <h3 style={{ marginTop: 0, marginBottom: "20px", fontSize: "18px", fontWeight: 700 }}>
-            {editId ? "Edit Loan" : "Add Loan"}
-          </h3>
-          <TypeToggle
-            options={[
-              ["took", "🔴 I Took"],
-              ["gave", "🟢 I Gave"],
-            ]}
-            value={form.type}
-            onChange={(type) => setForm({ ...form, type })}
-            colors={{
-              took: "#E53E3E",
-              gave: "#1DB954",
-            }}
-          />
-          <Label>PERSON'S NAME</Label>
-          <FInput
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            style={{ marginBottom: "12px" }}
-          />
-          <Label>AMOUNT</Label>
-          <FInput
-            type="number"
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-          />
-          <Label>REASON (OPTIONAL)</Label>
-          <FInput
-            value={form.reason}
-            onChange={(e) => setForm({ ...form, reason: e.target.value })}
-            style={{ marginBottom: "12px" }}
-          />
-          <Label>DATE</Label>
-          <FInput
-            type="date"
-            value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            style={{ marginBottom: "12px" }}
-          />
-          <Label>STATUS</Label>
-          <div style={{ display: "flex", flexDirection: "row", gap: "8px", marginBottom: "20px" }}>
-            <FBtn
-              outline={form.status !== "pending"}
-              bg={form.status === "pending" ? "#EEF4FB" : "white"}
-              color={form.status === "pending" ? "#2D6A9F" : "#999"}
-              onClick={() => setForm({ ...form, status: "pending" })}
-              style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-            >
-              ⏳ Pending
-            </FBtn>
-            <FBtn
-              outline={form.status !== "returned"}
-              bg={form.status === "returned" ? "#EEF4FB" : "white"}
-              color={form.status === "returned" ? "#2D6A9F" : "#999"}
-              onClick={() => setForm({ ...form, status: "returned" })}
-              style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}
-            >
-              ✓ Settled
-            </FBtn>
-          </div>
-          <FBtn onClick={handleSaveLoan}>{editId ? "Update Loan" : "Save Loan"}</FBtn>
-        </div>
-      </Sheet>
-    </div>
-  );
-};
-
-// 12. Settings component
-const Settings = ({
-  accounts,
-  setAccounts,
-  declaredAmount,
-  setDeclaredAmount,
-  goalAmount,
-  setGoalAmount,
-  manualCheck,
-  setManualCheck,
-  pin,
-  setPin,
-  pinEnabled,
-  setPinEnabled,
-}) => {
-  const [section, setSection] = useState(null);
-  const [accForm, setAccForm] = useState({
-    name: "",
-    type: "Cash",
-    icon: "💵",
-    opening: "",
+  const filtered = transactions.filter(t=>{
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (t.category||"").toLowerCase().includes(q)
+      || (t.note||"").toLowerCase().includes(q)
+      || (t.account||"").toLowerCase().includes(q)
+      || (t.toAccount||"").toLowerCase().includes(q);
   });
-  const [editAccId, setEditAccId] = useState(null);
-  const [delAccId, setDelAccId] = useState(null);
-  const [showPinSet, setShowPinSet] = useState(false);
 
-  const [daTemp, setDaTemp] = useState("");
-  const [goalTemp, setGoalTemp] = useState("");
-  const [mcTemp, setMcTemp] = useState("");
+  const grouped = sortByDateDesc(filtered).reduce((acc,t)=>{
+    const lbl = t.date===todayStr()?"Today":t.date===yesterdayStr()?"Yesterday":t.date;
+    (acc[lbl]||(acc[lbl]=[])).push(t);
+    return acc;
+  },{});
 
-  const saveAccount = useCallback(() => {
-    if (!accForm.name) {
-      alert("Please enter account name");
-      return;
-    }
-    const openingVal = parseFloat(String(accForm.opening).replace(/,/g, "")) || 0;
-    const newAccount = {
-      ...accForm,
-      opening: openingVal,
-      id: editAccId || Date.now(),
-    };
-    if (editAccId) {
-      setAccounts((prev) =>
-        prev.map((acc) => (acc.id === editAccId ? newAccount : acc))
-      );
+  const save = () => {
+    if (!form.amount || parseFloat(form.amount)<=0) return;
+    const now = Date.now(); // exact moment this transaction was logged
+    if (form.type==="transfer") {
+      if (!form.account || !form.toAccount || form.account===form.toAccount) return;
+      setTransactions(prev=>[{
+        id:now,type:"transfer",category:"Transfer",icon:"⇄",
+        amount:parseFloat(form.amount),note:form.note,date:form.date,createdAt:now,
+        account:form.account,toAccount:form.toAccount,method:""
+      },...prev]);
     } else {
-      setAccounts((prev) => [...prev, newAccount]);
+      if (!form.category || !form.account) return;
+      const cat = [...TX_CATS.income,...TX_CATS.expense].find(c=>c.l===form.category);
+      setTransactions(prev=>[{...form,id:now,icon:cat?.icon||"💰",createdAt:now,
+        amount:parseFloat(form.amount),toAccount:""},...prev]);
     }
-    setAccForm({ name: "", type: "Cash", icon: "💵", opening: "" });
-    setEditAccId(null);
-    setSection(null);
-  }, [accForm, editAccId, setAccounts]);
-
-  const deleteAccount = useCallback((id) => {
-    setAccounts((prev) => prev.filter((acc) => acc.id !== id));
-    setDelAccId(null);
-  }, [setAccounts]);
-
-  const startEditAccount = useCallback((account) => {
-    setAccForm({ ...account, opening: String(account.opening) });
-    setEditAccId(account.id);
-  }, []);
-
-  const toggle = (key) => setSection((s) => (s === key ? null : key));
-
-  const cardStyle = {
-    backgroundColor: T.surfaceCard,
-    borderRadius: T.r20,
-    padding: "18px",
-    marginBottom: "10px",
-    boxShadow: T.shadowCard,
+    setShowSheet(false);
+    setForm(EMPTY_TX);
   };
 
-  const menuRowStyle = {
-    backgroundColor: T.surfaceCard,
-    borderRadius: T.r20,
-    padding: "15px 16px",
-    marginBottom: "10px",
-    boxShadow: T.shadowCard,
-    display: "flex",
-    gap: "14px",
-    alignItems: "center",
-    cursor: "pointer",
-  };
+  const accountNames = accounts.map(a=>a.name);
+  const methods = form.type==="income" ? INCOME_METHODS : EXPENSE_METHODS;
 
-  const menuRowStaticStyle = { ...menuRowStyle, cursor: "default" };
+  const txColor = (t) => t.type==="income"?T.income:t.type==="transfer"?"#9F8AE8":T.expense;
+  const txBg    = (t) => t.type==="income"?T.incomeSoft:t.type==="transfer"?T.transferSoft:T.expenseSoft;
+  const txPrefix= (t) => t.type==="income"?"+":t.type==="transfer"?"⇄":"−";
 
-  const iconBoxStyle = {
-    width: "44px",
-    height: "44px",
-    borderRadius: "13px",
-    backgroundColor: T.surface,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "22px",
-  };
+  return (
+    <div>
+      <div style={{background:G.header,padding:"22px 16px 18px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>{monthYearStr()}</div>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:16,fontFamily:THEME.font.money}}>Transactions</div>
+        <SearchBar value={search} onChange={handleSearch} placeholder='Search or type "create"…'/>
+      </div>
 
-  const chevron = (key) => (
-    <div
-      style={{
-        color: "#CCC",
-        fontSize: "18px",
-        transform: section === key ? "rotate(90deg)" : "rotate(0deg)",
-        transition: "transform 0.2s",
-      }}
-    >
-      ›
+      <div style={{padding:"10px 12px"}}>
+        {Object.keys(grouped).length===0&&(
+          <div style={{textAlign:"center",padding:"40px 0",color:"#9FB3AD"}}>
+            <div style={{fontSize:36,marginBottom:8}}>🔍</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{search?"No results found":"No transactions yet"}</div>
+            <div style={{fontSize:12,marginTop:4}}>Tap + or type "create" to add one</div>
+          </div>
+        )}
+        {Object.entries(grouped).map(([lbl,txns])=>(
+          <div key={lbl} style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:T.inkSoft,fontWeight:700,letterSpacing:.6,marginBottom:8}}>{lbl.toUpperCase()}</div>
+            <div style={{background:T.card,borderRadius:R.lg,padding:"4px 14px",boxShadow:SH.card}}>
+              {txns.map((t,i)=>(
+                <div key={t.id} onClick={()=>setSelectedTx(t)} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 0",
+                  borderBottom:i<txns.length-1?`1px solid ${T.line}`:"none",cursor:"pointer"}}>
+                  <div style={{width:42,height:42,borderRadius:R.sm,background:txBg(t),
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{t.icon}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}
+                    </div>
+                    <div style={{fontSize:11,color:T.inkSoft}}>
+                      {t.type==="transfer"?"Transfer":`${t.account}${t.method?" · "+t.method:""}`}
+                      {fmtTime(t.createdAt) ? ` · ${fmtTime(t.createdAt)}` : ""}
+                    </div>
+                    {t.note&&t.type!=="transfer"&&<div style={{fontSize:11,color:"#A8B8B3"}}>{t.note}</div>}
+                  </div>
+                  <div style={{fontSize:15,fontWeight:700,color:txColor(t),flexShrink:0,fontFamily:THEME.font.money}}>
+                    {txPrefix(t)}{fmt(t.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* FAB */}
+      <button onClick={()=>{setForm(EMPTY_TX);setShowSheet(true);}}
+        onMouseDown={e=>e.currentTarget.style.transform="scale(0.93)"}
+        onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+        style={{
+        position:"fixed",bottom:90,right:"max(16px, calc(50% - 210px + 16px))",
+        width:58,height:58,borderRadius:R.pill,background:G.gold,
+        color:T.teal900,fontSize:28,border:"none",cursor:"pointer",fontWeight:700,
+        boxShadow:"0 8px 22px rgba(232,199,126,0.5)",display:"flex",alignItems:"center",justifyContent:"center",
+        transition:"transform .12s ease"
+      }}>+</button>
+
+      <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
+        <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>Add Transaction</div>
+        <TypeToggle
+          options={[["expense","↓ Expense"],["income","↑ Income"],["transfer","⇄ Transfer"]]}
+          value={form.type} onChange={v=>setForm({...EMPTY_TX,type:v})}
+          colors={{expense:G.expense,income:G.income,transfer:G.transfer}}/>
+
+        <Label>AMOUNT</Label>
+        <FInput value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}
+          placeholder="₹ 0" type="number" style={{fontSize:19,fontWeight:700,marginBottom:12,fontFamily:THEME.font.money}}/>
+
+        {form.type==="transfer" ? (<>
+          <Label>FROM ACCOUNT</Label>
+          {accountNames.length===0
+            ?<div style={{fontSize:12,color:"#946A1F",marginBottom:12,padding:"10px 12px",background:T.goldSoft,borderRadius:R.sm}}>
+               ⚠️ No accounts. Add accounts in Settings first.
+             </div>
+            :<ChipRow items={accountNames} selected={form.account}
+                onSelect={v=>setForm({...form,account:v,toAccount:form.toAccount===v?"":form.toAccount})}
+                activeColor="#7C66D9" activeBg={T.transferSoft}/>
+          }
+          <div style={{textAlign:"center",fontSize:20,marginBottom:10,color:"#9F8AE8"}}>⬇</div>
+          <Label>TO ACCOUNT</Label>
+          <ChipRow items={accountNames.filter(a=>a!==form.account)} selected={form.toAccount}
+            onSelect={v=>setForm({...form,toAccount:v})}
+            activeColor="#7C66D9" activeBg={T.transferSoft}/>
+        </>) : (<>
+          <Label>CATEGORY</Label>
+          <ChipRow items={TX_CATS[form.type]} selected={form.category}
+            onSelect={v=>{
+              const cat=TX_CATS[form.type].find(c=>c.l===v);
+              setForm({...form,category:v,icon:cat?.icon||"💰"});
+            }}/>
+          <Label>{form.type==="income"?"RECEIVED IN":"PAID FROM"}</Label>
+          {accountNames.length===0
+            ?<div style={{fontSize:12,color:"#946A1F",marginBottom:12,padding:"10px 12px",background:T.goldSoft,borderRadius:R.sm}}>
+               ⚠️ No accounts. Add accounts in Settings first.
+             </div>
+            :<ChipRow items={accountNames} selected={form.account} onSelect={v=>setForm({...form,account:v})}/>
+          }
+          <Label>HOW</Label>
+          <ChipRow items={methods} selected={form.method} onSelect={v=>setForm({...form,method:v})}/>
+        </>)}
+
+        <Label>NOTE (OPTIONAL)</Label>
+        <FInput value={form.note} onChange={e=>setForm({...form,note:e.target.value})}
+          placeholder="Add a note…" style={{marginBottom:10}}/>
+        <Label>DATE</Label>
+        <FInput value={form.date} onChange={e=>setForm({...form,date:e.target.value})}
+          type="date" style={{marginBottom:16}}/>
+        <FBtn onClick={save} style={{width:"100%",padding:"15px"}}>Save Transaction</FBtn>
+      </Sheet>
+
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx}/>
     </div>
   );
+}
+
+// ─── LOANS ────────────────────────────────────────────────────────────────────
+const EMPTY_LOAN = {type:"took",name:"",amount:"",reason:"",date:todayStr(),status:"pending"};
+
+function Loans({ loans, setLoans }) {
+  const [search, setSearch]       = useState("");
+  const [filter, setFilter]       = useState("all");
+  const [showSheet, setShowSheet] = useState(false);
+  const [editId, setEditId]       = useState(null);
+  const [form, setForm]           = useState(EMPTY_LOAN);
+  const [delId, setDelId]         = useState(null);
+
+  const handleSearch = (e) => {
+    const v = e.target.value;
+    setSearch(v);
+    if (v.trim().toLowerCase()==="create") {
+      setTimeout(()=>{ setSearch(""); setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); },200);
+    }
+  };
+
+  const totalTook = loans.filter(l=>l.type==="took"&&l.status==="pending").reduce((s,l)=>s+l.amount,0);
+  const totalGave = loans.filter(l=>l.type==="gave"&&l.status==="pending").reduce((s,l)=>s+l.amount,0);
+  const net       = totalGave - totalTook;
+
+  const visible = loans
+    .filter(l=>filter==="all"||l.type===filter)
+    .filter(l=>{
+      if (!search) return true;
+      const q=search.toLowerCase();
+      return l.name.toLowerCase().includes(q)||(l.reason||"").toLowerCase().includes(q);
+    });
+
+  const openAdd  = ()  => { setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); };
+  const openEdit = (l) => { setForm({...l,amount:String(l.amount)}); setEditId(l.id); setShowSheet(true); };
+
+  const save = () => {
+    if (!form.name||!form.amount||parseFloat(form.amount)<=0) return;
+    const entry = {...form, amount:parseFloat(form.amount)};
+    if (editId) setLoans(prev=>prev.map(l=>l.id===editId?{...entry,id:editId}:l));
+    else        setLoans(prev=>[{...entry,id:Date.now()},...prev]);
+    setShowSheet(false); setEditId(null);
+  };
+
+  const toggleStatus = (id) =>
+    setLoans(prev=>prev.map(l=>l.id===id?{...l,status:l.status==="pending"?"returned":"pending"}:l));
+  const remove = (id) => { setLoans(prev=>prev.filter(l=>l.id!==id)); setDelId(null); };
+
+  return (
+    <div>
+      <div style={{background:G.header,padding:"22px 16px 18px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>{monthYearStr()}</div>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:14,fontFamily:THEME.font.money}}>Loans</div>
+        {/* Net position */}
+        <div style={{background:T.glassStrong,borderRadius:R.lg,padding:"15px 18px",
+          border:`1px solid ${T.glassBorder}`,marginBottom:14,backdropFilter:"blur(12px)"}}>
+          <div style={{fontSize:11,opacity:.65,marginBottom:4,fontWeight:600}}>NET POSITION</div>
+          <div style={{fontSize:28,fontWeight:700,letterSpacing:-0.5,color:net>=0?T.mint:"#FCA5A5",fontFamily:THEME.font.money}}>
+            {net>=0?"+":""}{fmt(Math.abs(net))}
+          </div>
+          <div style={{display:"flex",gap:20,marginTop:10}}>
+            <div>
+              <div style={{fontSize:11,opacity:.6}}>🔴 I OWE</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#FCA5A5"}}>{fmt(totalTook)}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,opacity:.6}}>🟢 THEY OWE</div>
+              <div style={{fontSize:15,fontWeight:700,color:T.mint}}>{fmt(totalGave)}</div>
+            </div>
+          </div>
+        </div>
+        <SearchBar value={search} onChange={handleSearch} placeholder='Search or type "create"…'/>
+      </div>
+
+      <div style={{padding:"10px 12px"}}>
+        {/* Filter */}
+        <div style={{display:"flex",background:T.card,borderRadius:R.md,padding:4,marginBottom:14,
+          boxShadow:SH.card,gap:4}}>
+          {[["all","All"],["took","🔴 I Took"],["gave","🟢 I Gave"]].map(([v,lbl])=>(
+            <button key={v} onClick={()=>setFilter(v)} style={{flex:1,padding:"11px 4px",border:"none",
+              borderRadius:R.sm,cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:THEME.font.body,
+              background:filter===v?G.primary:"transparent",
+              boxShadow:filter===v?SH.soft:"none",
+              color:filter===v?"white":T.inkSoft}}>{lbl}</button>
+          ))}
+        </div>
+
+        {visible.length===0&&(
+          <div style={{textAlign:"center",padding:"40px 0",color:"#9FB3AD"}}>
+            <div style={{fontSize:36,marginBottom:8}}>📭</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{search?"No results":"No loans here"}</div>
+            <div style={{fontSize:12,marginTop:4}}>Tap + or type "create" to add one</div>
+          </div>
+        )}
+
+        {visible.map(loan=>(
+          <div key={loan.id} style={{background:T.card,borderRadius:R.lg,padding:"10px 12px",marginBottom:12,
+            boxShadow:SH.card,
+            borderLeft:`4px solid ${loan.type==="took"?T.expense:T.income}`,
+            opacity:loan.status==="returned"?.65:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:46,height:46,borderRadius:"50%",flexShrink:0,
+                background:avatarColor(loan.name),display:"flex",alignItems:"center",
+                justifyContent:"center",color:"white",fontWeight:800,fontSize:18,
+                boxShadow:"0 3px 8px rgba(0,0,0,0.18)"}}>
+                {loan.name[0].toUpperCase()}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <div style={{fontSize:15,fontWeight:700,color:T.ink}}>{loan.name}</div>
+                  <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:R.pill,
+                    background:loan.status==="returned"?T.incomeSoft:T.goldSoft,
+                    color:loan.status==="returned"?"#1E8E5A":"#946A1F"}}>
+                    {loan.status==="returned"?"✓ Settled":"Pending"}
+                  </span>
+                </div>
+                <div style={{fontSize:12,color:T.inkSoft,marginTop:2}}>{loan.reason||"—"}</div>
+                <div style={{fontSize:11,color:"#A8B8B3",marginTop:1}}>{loan.date}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:17,fontWeight:800,color:loan.type==="took"?T.expense:T.income,fontFamily:THEME.font.money}}>
+                  {loan.type==="took"?"−":"+"}{fmt(loan.amount)}
+                </div>
+                <div style={{fontSize:11,color:"#A8B8B3",marginTop:2}}>{loan.type==="took"?"I owe":"They owe"}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:12,paddingTop:10,borderTop:`1px solid ${T.line}`}}>
+              <button onClick={()=>toggleStatus(loan.id)} style={{flex:1,padding:"9px 0",borderRadius:R.sm,
+                border:"1.5px solid",cursor:"pointer",fontFamily:THEME.font.body,fontWeight:700,fontSize:12,
+                borderColor:loan.status==="returned"?T.line:T.income,
+                background:loan.status==="returned"?T.bgSoft:T.incomeSoft,
+                color:loan.status==="returned"?T.inkSoft:"#1E8E5A"}}>
+                {loan.status==="returned"?"↩ Pending":"✓ Settled"}
+              </button>
+              <button onClick={()=>openEdit(loan)} style={{padding:"9px 14px",borderRadius:R.sm,
+                border:`1.5px solid ${T.line}`,background:"#F0F6FF",color:T.teal500,
+                fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>✏️ Edit</button>
+              <button onClick={()=>setDelId(loan.id)} style={{padding:"9px 14px",borderRadius:R.sm,
+                border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,
+                fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* FAB */}
+      <button onClick={openAdd}
+        onMouseDown={e=>e.currentTarget.style.transform="scale(0.93)"}
+        onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+        style={{position:"fixed",bottom:90,right:"max(16px, calc(50% - 210px + 16px))",
+        width:58,height:58,borderRadius:R.pill,background:G.gold,
+        color:T.teal900,fontSize:28,border:"none",cursor:"pointer",fontWeight:700,
+        boxShadow:"0 8px 22px rgba(232,199,126,0.5)",display:"flex",alignItems:"center",justifyContent:"center",
+        transition:"transform .12s ease"}}>+</button>
+
+      {/* Delete confirm modal */}
+      {delId&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:400,
+          display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(2px)"}}>
+          <div style={{background:T.card,borderRadius:R.xl,padding:"28px 24px",width:"100%",maxWidth:320,textAlign:"center",boxShadow:SH.raised}}>
+            <div style={{fontSize:36,marginBottom:10}}>🗑️</div>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:8,color:T.ink}}>Delete this loan?</div>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:22}}>This cannot be undone.</div>
+            <div style={{display:"flex",gap:10}}>
+              <FBtn onClick={()=>setDelId(null)} outline color={T.inkSoft} style={{flex:1}}>Cancel</FBtn>
+              <FBtn onClick={()=>remove(delId)} bg={G.expense} style={{flex:1}}>Delete</FBtn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Sheet */}
+      <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
+        <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Loan":"Add Loan"}</div>
+        <TypeToggle options={[["took","🔴 I Took"],["gave","🟢 I Gave"]]} value={form.type}
+          onChange={v=>setForm({...EMPTY_LOAN,type:v})} colors={{took:G.expense,gave:G.income}}/>
+        <Label>PERSON'S NAME</Label>
+        <FInput value={form.name} onChange={e=>setForm({...form,name:e.target.value})}
+          placeholder="e.g. Rahul Sharma" style={{marginBottom:10}}/>
+        <Label>AMOUNT</Label>
+        <FInput value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}
+          placeholder="₹ 0" type="number" style={{fontSize:18,fontWeight:700,marginBottom:10,fontFamily:THEME.font.money}}/>
+        <Label>REASON (OPTIONAL)</Label>
+        <FInput value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}
+          placeholder="e.g. Medical, Travel…" style={{marginBottom:10}}/>
+        <Label>DATE</Label>
+        <FInput value={form.date} onChange={e=>setForm({...form,date:e.target.value})}
+          type="date" style={{marginBottom:12}}/>
+        <Label>STATUS</Label>
+        <div style={{display:"flex",gap:8,marginBottom:18}}>
+          {[["pending","⏳ Pending"],["returned","✓ Settled"]].map(([v,lbl])=>(
+            <button key={v} onClick={()=>setForm({...form,status:v})} style={{flex:1,padding:"11px",
+              border:"1.5px solid",borderRadius:R.sm,cursor:"pointer",fontWeight:600,fontSize:13,fontFamily:THEME.font.body,
+              borderColor:form.status===v?T.teal500:T.line,
+              background:form.status===v?T.mintSoft:T.card,
+              color:form.status===v?T.teal700:T.inkSoft}}>{lbl}</button>
+          ))}
+        </div>
+        <FBtn onClick={save} style={{width:"100%",padding:"15px"}}>{editId?"Update Loan":"Save Loan"}</FBtn>
+      </Sheet>
+    </div>
+  );
+}
+
+// ─── UPI MANAGER (used inside Settings sheet) ─────────────────────────────────
+const EMPTY_UPI = { label:"", upiId:"", qr:null };
+
+// Compress image to max 400x400 and quality 0.7 before storing as base64
+function compressImage(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 400;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function UpiManager({ upiList, setUpiList }) {
+  const [form, setForm]     = useState(EMPTY_UPI);
+  const [editId, setEditId] = useState(null);
+  const [delId, setDelId]   = useState(null);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (compressed) => {
+      setForm(f=>({...f, qr: compressed}));
+    });
+  };
+
+  const save = () => {
+    if (!form.label.trim() || !form.upiId.trim()) return;
+    if (editId) setUpiList(prev=>prev.map(u=>u.id===editId?{...form,id:editId}:u));
+    else        setUpiList(prev=>[...prev,{...form,id:Date.now()}]);
+    setForm(EMPTY_UPI); setEditId(null);
+  };
+  const startEdit = (u) => { setForm({label:u.label,upiId:u.upiId,qr:u.qr}); setEditId(u.id); };
+  const cancelEdit = () => { setForm(EMPTY_UPI); setEditId(null); };
+  const remove = (id) => { setUpiList(prev=>prev.filter(u=>u.id!==id)); setDelId(null); };
+
+  return (
+    <div>
+      <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:12}}>My UPI IDs</div>
+      {upiList.length===0 && <div style={{fontSize:13,color:"#9FB3AD",marginBottom:12}}>No UPI IDs added yet</div>}
+      {upiList.map(u=>(
+        <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"10px 12px",borderRadius:12,background:T.bgSoft}}>
+          {u.qr
+            ? <img src={u.qr} alt="QR" style={{width:40,height:40,borderRadius:8,objectFit:"contain",flexShrink:0,background:T.card}}/>
+            : <div style={{width:40,height:40,borderRadius:8,background:T.mintSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📱</div>
+          }
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.label}</div>
+            <div style={{fontSize:11,color:T.inkSoft,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.upiId}</div>
+          </div>
+          <button onClick={()=>startEdit(u)} style={{padding:"5px 10px",borderRadius:8,border:`1.5px solid ${T.line}`,background:"#F0F6FF",color:T.teal500,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Edit</button>
+          <button onClick={()=>setDelId(u.id)} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>🗑</button>
+        </div>
+      ))}
+
+      {delId && (
+        <div style={{padding:"14px",borderRadius:12,background:T.expenseSoft,border:"1.5px solid #FBD5D5",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.expense,marginBottom:10}}>Delete this UPI ID?</div>
+          <div style={{display:"flex",gap:8}}>
+            <FBtn onClick={()=>setDelId(null)} outline color={T.inkSoft} style={{flex:1,padding:"10px"}}>Cancel</FBtn>
+            <FBtn onClick={()=>remove(delId)} bg={G.expense} style={{flex:1,padding:"10px"}}>Delete</FBtn>
+          </div>
+        </div>
+      )}
+
+      <div style={{paddingTop:12,borderTop:`1px solid ${T.line}`}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.inkSoft,marginBottom:10}}>{editId?"Edit UPI ID":"Add New UPI ID"}</div>
+        <FInput value={form.label} onChange={e=>setForm({...form,label:e.target.value})} placeholder="Label (e.g. Personal UPI)" style={{marginBottom:10}}/>
+        <FInput value={form.upiId} onChange={e=>setForm({...form,upiId:e.target.value})} placeholder="UPI ID (e.g. name@bank)" style={{marginBottom:10}}/>
+
+        <Label>QR CODE (OPTIONAL)</Label>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          {form.qr
+            ? <img src={form.qr} alt="QR preview" style={{width:56,height:56,borderRadius:10,objectFit:"contain",border:`1.5px solid ${T.line}`}}/>
+            : <div style={{width:56,height:56,borderRadius:10,background:T.bgSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:`1.5px dashed ${T.line}`}}>🖼️</div>
+          }
+          <label style={{flex:1,padding:"10px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,background:T.card,
+            fontSize:12,fontWeight:600,color:T.teal500,cursor:"pointer",textAlign:"center"}}>
+            {form.qr ? "Change Image" : "Upload QR Image"}
+            <input type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
+          </label>
+          {form.qr && <button onClick={()=>setForm({...form,qr:null})} style={{padding:"10px 12px",borderRadius:R.sm,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer"}}>✕</button>}
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          {editId&&<FBtn onClick={cancelEdit} outline color={T.inkSoft} style={{flex:1,padding:"12px"}}>Cancel</FBtn>}
+          <FBtn onClick={save} style={{flex:1,padding:"12px"}}>{editId?"Update UPI ID":"Add UPI ID"}</FBtn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS (bottom sheet, opened from Home gear icon) ──────────────────────
+function SettingsSheet({
+  open, onClose,
+  transactions, setTransactions,
+  loans, setLoans,
+  accounts, setAccounts,
+  openingBalance, setOpeningBalance,
+  declaredAmount, setDeclaredAmount,
+  goalAmount, setGoalAmount,
+  manualCheck, setManualCheck,
+  pin, setPin, pinEnabled, setPinEnabled,
+  upiList, setUpiList,
+  notifyEnabled, setNotifyEnabled,
+  onOpenProfile,
+  onOpenAccounts,
+  profile, setProfile,
+}) {
+  const [section, setSection]       = useState(null);
+  const [subSection, setSubSection] = useState(null);
+  const [showPinSet, setShowPinSet] = useState(false);
+  const [mcTemp, setMcTemp]         = useState("");
+  const [daTemp, setDaTemp]         = useState("");
+  const [goalTemp, setGoalTemp]     = useState("");
+  const [obTemp, setObTemp]         = useState("");
+  const [backupMsg, setBackupMsg]   = useState(null); // {type:'ok'|'err', text}
+  // Profile editing state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [nameTemp, setNameTemp]             = useState(profile.name||"");
+
+  const toggle = (key) => { setSection(prev => prev === key ? null : key); setSubSection(null); };
+
+  // Reset all open sections when sheet is closed
+  useEffect(() => { if (!open) { setSection(null); setSubSection(null); setEditingProfile(false); } }, [open]);
+
+  // SubRow — used inside the Accounts section for nested items
+  const SubRow = ({icon,title,sub,open:isOpen,onToggle}) => (
+    <div onClick={onToggle} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",
+      cursor:"pointer",borderTop:`1px solid ${T.line}`}}>
+      <div style={{width:32,height:32,borderRadius:9,background:isOpen?T.mintSoft:T.bgSoft,
+        display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{title}</div>
+        <div style={{fontSize:11,color:T.inkSoft}}>{sub}</div>
+      </div>
+      <div style={{color:isOpen?T.teal500:"#9FB3AD",fontSize:14,
+        transform:isOpen?"rotate(90deg)":"none",transition:"transform .2s"}}>›</div>
+    </div>
+  );
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (compressed) => {
+      setProfile(p=>({...p, avatar: compressed}));
+    });
+  };
+
+  const saveProfileName = () => {
+    setProfile(p=>({...p, name: nameTemp}));
+    setEditingProfile(false);
+  };
+
+  const exportCSV = () => {
+    downloadFile(`transactions-${todayStr()}.csv`, transactionsToCSV(transactions), "text/csv");
+  };
+
+  const exportBackup = () => {
+    const backup = {
+      _app: "my-finance-app", _version: 1, exportedAt: new Date().toISOString(),
+      transactions, loans, accounts, openingBalance, declaredAmount,
+      goalAmount, manualCheck, upiList, profile, notifyEnabled,
+      // PIN intentionally excluded from backup file for safety
+    };
+    downloadFile(`finance-backup-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
+  };
+
+  const restoreBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data._app !== "my-finance-app") throw new Error("not a recognized backup file");
+        if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+        if (Array.isArray(data.loans))        setLoans(data.loans);
+        if (Array.isArray(data.accounts))     setAccounts(data.accounts);
+        if (typeof data.openingBalance==="number") setOpeningBalance(data.openingBalance);
+        if (typeof data.declaredAmount==="number") setDeclaredAmount(data.declaredAmount);
+        if (typeof data.goalAmount==="number")     setGoalAmount(data.goalAmount);
+        if (typeof data.manualCheck==="number")    setManualCheck(data.manualCheck);
+        if (Array.isArray(data.upiList))      setUpiList(data.upiList);
+        if (data.profile)                     setProfile(data.profile);
+        if (typeof data.notifyEnabled==="boolean") setNotifyEnabled(data.notifyEnabled);
+        setBackupMsg({type:"ok", text:"Backup restored successfully."});
+      } catch (err) {
+        setBackupMsg({type:"err", text:"Couldn't read that file — is it a backup exported from this app?"});
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const card = {background:T.bgSoft,borderRadius:R.lg,padding:"13px",marginBottom:10};
+  const menuRow = (icon,title,sub,key,onPress) => (
+    <div onClick={()=>onPress ? onPress() : key&&toggle(key)}
+      style={{background:T.card,borderRadius:R.lg,padding:"10px 12px",marginBottom:10,
+        boxShadow:SH.card,display:"flex",alignItems:"center",gap:12,cursor:(key||onPress)?"pointer":"default"}}>
+      <div style={{width:40,height:40,borderRadius:12,background:T.bgSoft,flexShrink:0,
+        display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{icon}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{title}</div>
+        <div style={{fontSize:11,color:T.inkSoft,marginTop:1}}>{sub}</div>
+      </div>
+      {(key||onPress)&&<div style={{color:"#9FB3AD",fontSize:16,
+        transform:section===key?"rotate(90deg)":"none",transition:"transform .2s"}}>›</div>}
+    </div>
+  );
+
+  const initials = (profile.name||"U").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+
+  if (!open) return null;
+
+  return (
+    <Sheet open={open} onClose={onClose}>
+
+      {/* ── PROFILE HEADER ── */}
+      <div style={{display:"flex",alignItems:"center",gap:14,padding:"4px 0 18px",borderBottom:`1px solid ${T.line}`,marginBottom:16}}>
+        {/* Avatar with change option */}
+        <div style={{position:"relative",flexShrink:0}}>
+          {profile.avatar
+            ? <img src={profile.avatar} alt="Avatar" style={{width:62,height:62,borderRadius:"50%",objectFit:"cover",border:`2px solid ${T.mintSoft}`}}/>
+            : <div style={{width:62,height:62,borderRadius:"50%",background:G.primary,display:"flex",
+                alignItems:"center",justifyContent:"center",color:"white",fontSize:22,fontWeight:800}}>{initials}</div>
+          }
+          <label style={{position:"absolute",bottom:0,right:0,width:22,height:22,borderRadius:"50%",
+            background:T.teal500,display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:11,cursor:"pointer",border:"2px solid white",color:"white"}}>
+            📷
+            <input type="file" accept="image/*" onChange={handleAvatarChange} style={{display:"none"}}/>
+          </label>
+        </div>
+
+        {/* Name edit */}
+        <div style={{flex:1,minWidth:0}}>
+          {editingProfile ? (
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input value={nameTemp} onChange={e=>setNameTemp(e.target.value)}
+                placeholder="Your name"
+                style={{flex:1,padding:"8px 10px",borderRadius:10,border:`1.5px solid ${T.teal500}`,
+                  fontSize:14,fontWeight:600,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={saveProfileName} style={{padding:"8px 12px",borderRadius:10,border:"none",
+                background:G.primary,color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>✓</button>
+              <button onClick={()=>{setEditingProfile(false);setNameTemp(profile.name||"");}}
+                style={{padding:"8px 10px",borderRadius:10,border:`1px solid ${T.line}`,
+                background:"white",color:T.inkSoft,fontSize:12,fontWeight:700,cursor:"pointer"}}>✕</button>
+            </div>
+          ) : (
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {profile.name || "Tap to set your name"}
+                </div>
+                <div style={{fontSize:11,color:T.inkSoft,marginTop:2}}>Tap ✏️ to edit name · 📷 to change photo</div>
+              </div>
+              <button onClick={()=>{setNameTemp(profile.name||"");setEditingProfile(true);}}
+                style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${T.line}`,
+                background:T.bgSoft,color:T.teal500,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>✏️</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column"}}>
+
+        {/* ── ACCOUNTS + BALANCE OPTIONS → opens full screen ── */}
+        {menuRow("🏦","Manage Accounts & Balances",
+          `${accounts.length} account${accounts.length!==1?"s":""} · opening, declared, goal`,
+          null, ()=>onOpenAccounts())}
+
+        {/* ── UPI MANAGEMENT ── */}
+        {menuRow("📱","UPI IDs",`${upiList.length} saved`, "upi")}
+        {section==="upi" && (
+          <div onClick={e=>e.stopPropagation()} style={card}><UpiManager upiList={upiList} setUpiList={setUpiList}/></div>
+        )}
+
+        {/* ── MANUAL CHECK ── */}
+        {menuRow("🔎","Manual Check", manualCheck>0?`Your count: ${fmt(manualCheck)}`:"Not set", "manual")}
+        {section==="manual" && (
+          <div onClick={e=>e.stopPropagation()} style={card}>
+            <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:6}}>Manual Check Amount</div>
+            <div style={{fontSize:12,color:T.inkSoft,marginBottom:12}}>Physically count your cash and enter it here. Dashboard compares it against the app's calculated total.</div>
+            <FInput value={mcTemp} onChange={e=>setMcTemp(e.target.value)}
+              placeholder={manualCheck>0?fmt(manualCheck):"₹ 0"} type="number" style={{fontSize:18,fontWeight:700,marginBottom:12}}/>
+            <div style={{display:"flex",gap:8}}>
+              {manualCheck>0&&<FBtn onClick={()=>{setManualCheck(0);setMcTemp("");toggle("manual");}} bg={G.expense} style={{flex:1,padding:"12px"}}>🗑 Remove</FBtn>}
+              <FBtn onClick={()=>{setManualCheck(parseFloat(mcTemp)||0);setMcTemp("");toggle("manual");}} style={{flex:1,padding:"12px"}}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ── PIN LOCK ── */}
+        {menuRow("🔒","PIN Lock", pinEnabled?"Enabled · tap to change":"Disabled", "pin")}
+        {section==="pin" && (
+          <div onClick={e=>e.stopPropagation()} style={card}>
+            <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:14}}>PIN Lock</div>
+            {pinEnabled
+              ? <div style={{display:"flex",gap:8}}>
+                  <FBtn onClick={()=>setShowPinSet(true)} outline color={T.teal500} style={{flex:1,padding:"12px"}}>🔄 Change PIN</FBtn>
+                  <FBtn onClick={()=>{setPinEnabled(false);setPin("");toggle("pin");}} bg={G.expense} style={{flex:1,padding:"12px"}}>🔓 Disable</FBtn>
+                </div>
+              : <FBtn onClick={()=>setShowPinSet(true)} style={{width:"100%",padding:"12px"}}>🔒 Set PIN</FBtn>
+            }
+          </div>
+        )}
+
+        {/* ── PROFILE (full screen) ── */}
+        {menuRow("👤","Profile","Occupation, income, language", null, ()=>{onClose();onOpenProfile();})}
+
+        {/* ── NOTIFICATIONS ── */}
+        <div style={{background:T.card,borderRadius:R.lg,padding:"10px 12px",marginBottom:10,
+          boxShadow:SH.card,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:40,height:40,borderRadius:12,background:T.bgSoft,flexShrink:0,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🔔</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:700,color:T.ink}}>Notifications</div>
+            <div style={{fontSize:11,color:T.inkSoft,marginTop:1}}>
+              {notifyEnabled ? "On · daily reminder if nothing's logged today" : "Off · daily reminders"}
+            </div>
+          </div>
+          <ToggleSwitch on={notifyEnabled} onChange={setNotifyEnabled}/>
+        </div>
+
+        {/* ── NON-FUNCTIONAL ROWS ── */}
+        {/* ── BACKUP ── */}
+        {menuRow("💾","Backup","Export or restore your data", "backup")}
+        {section==="backup" && (
+          <div onClick={e=>e.stopPropagation()} style={card}>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:14,lineHeight:1.5}}>
+              Exports save a file to your device's Downloads folder. Nothing is uploaded anywhere.
+            </div>
+
+            <div style={{fontSize:12,fontWeight:700,color:T.ink,marginBottom:8}}>Export</div>
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <FBtn onClick={exportCSV} outline color={T.teal500} style={{flex:1,padding:"11px"}}>📄 CSV (transactions)</FBtn>
+              <FBtn onClick={exportBackup} style={{flex:1,padding:"11px"}}>💾 Full Backup (JSON)</FBtn>
+            </div>
+
+            <div style={{fontSize:12,fontWeight:700,color:T.ink,marginBottom:8}}>Restore</div>
+            <label style={{display:"block",padding:"11px",borderRadius:R.sm,border:`1.5px dashed ${T.line}`,
+              background:T.card,fontSize:13,fontWeight:600,color:T.teal500,cursor:"pointer",textAlign:"center"}}>
+              📤 Choose Backup File to Restore
+              <input type="file" accept="application/json" onChange={restoreBackup} style={{display:"none"}}/>
+            </label>
+            <div style={{fontSize:11,color:T.inkSoft,marginTop:6}}>
+              Restoring a full backup replaces your current transactions, loans, accounts, and settings (PIN is not included).
+            </div>
+
+            {backupMsg && (
+              <div style={{marginTop:10,padding:"9px 11px",borderRadius:R.sm,fontSize:12,
+                background:backupMsg.type==="ok"?T.incomeSoft:T.expenseSoft,
+                color:backupMsg.type==="ok"?"#1E8E5A":T.expense}}>
+                {backupMsg.text}
+              </div>
+            )}
+          </div>
+        )}
+        {menuRow("ℹ️","About","Version 1.3.0", null)}
+
+      </div>
+
+      {showPinSet && (
+        <PinScreen mode="set"
+          onSuccess={(newPin)=>{ setPin(newPin); setPinEnabled(true); setShowPinSet(false); setSection(null); }}
+          onCancel={()=>setShowPinSet(false)}/>
+      )}
+    </Sheet>
+  );
+}
+
+// ─── GOAL TAB ─────────────────────────────────────────────────────────────────
+function Goal({ transactions, accounts, openingBalance, goalAmount }) {
+  // Total tracked balance (same formula as Dashboard)
+  const accountBalances = calcAccountBalances(accounts, transactions);
+  const totalTracked    = accountBalances.reduce((s,a)=>s+a.balance,0) + openingBalance;
+
+  const pct        = goalAmount>0 ? Math.min(100, Math.round((totalTracked/goalAmount)*100)) : 0;
+  const needed     = Math.max(0, goalAmount - totalTracked);
+  const isAchieved = goalAmount>0 && totalTracked >= goalAmount;
+
+  const msg = pct>=100 ? "🎉 Goal achieved! Set a new one!"
+    : pct>=67 ? "Almost there, don't stop now! 🔥"
+    : pct>=34 ? "Halfway there, great progress! 🚀"
+    : pct>0   ? "Keep saving, you're on your way! 💪"
+    : "Set a goal from Settings to start!";
+
+  const curMonth = todayStr().slice(0,7); // "YYYY-MM"
+  const thisMonthTx = transactions.filter(t=>(t.date||"").slice(0,7)===curMonth);
+  const monthlySaving = thisMonthTx.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0)
+                      - thisMonthTx.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+  const monthsNeeded  = monthlySaving>0 && needed>0 ? Math.ceil(needed/monthlySaving) : null;
 
   return (
     <div>
       {/* Header */}
-      <div style={{ background: T.headerGrad, padding: "32px 20px 28px", color: "white", borderRadius: "0 0 28px 28px" }}>
-        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>PREFERENCES</div>
-        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px" }}>Settings</div>
+      <div style={{background:G.header,padding:"24px 16px 68px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-50,right:-30,width:160,height:160,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,199,126,0.18),transparent 70%)"}}/>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600,position:"relative"}}>SAVINGS</div>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:22,fontFamily:THEME.font.money,position:"relative"}}>My Goal</div>
+
+        {goalAmount>0 ? (
+          <div style={{background:T.glassStrong,borderRadius:R.xl,padding:"16px",border:`1px solid ${T.glassBorder}`,backdropFilter:"blur(14px)",position:"relative",boxShadow:SH.glow}}>
+            <div style={{marginBottom:18,paddingBottom:18,borderBottom:`1px solid ${T.glassBorder}`}}>
+              <div style={{fontSize:11,opacity:.6,letterSpacing:.6,marginBottom:6,fontWeight:600}}>🎯 MY GOAL</div>
+              <div style={{fontSize:28,fontWeight:600,letterSpacing:-0.5,color:T.gold,fontFamily:THEME.font.money}}>{fmt(goalAmount)}</div>
+            </div>
+            <div style={{marginBottom:18,paddingBottom:18,borderBottom:`1px solid ${T.glassBorder}`}}>
+              <div style={{fontSize:11,opacity:.6,letterSpacing:.6,marginBottom:6,fontWeight:600}}>💰 TOTAL BALANCE</div>
+              <div style={{fontSize:28,fontWeight:600,letterSpacing:-0.5,color:"white",fontFamily:THEME.font.money}}>{fmt(totalTracked)}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,opacity:.6,letterSpacing:.6,marginBottom:6,fontWeight:600}}>
+                {isAchieved?"✅ STATUS":"📉 STILL NEEDED"}
+              </div>
+              <div style={{fontSize:28,fontWeight:600,letterSpacing:-0.5,color:isAchieved?T.mint:"#FCA5A5",fontFamily:THEME.font.money}}>
+                {isAchieved?"Goal Achieved!":fmt(needed)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{background:T.glassStrong,borderRadius:R.xl,padding:"16px",border:`1px solid ${T.glassBorder}`,textAlign:"center",backdropFilter:"blur(14px)",position:"relative"}}>
+            <div style={{fontSize:36,marginBottom:10}}>🎯</div>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>No Goal Set</div>
+            <div style={{fontSize:12,opacity:.6}}>Go to Settings → Savings Goal to set your target amount</div>
+          </div>
+        )}
       </div>
 
-      {/* Menu Items */}
-      <div style={{ padding: "16px", marginBottom: "80px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
+      <div style={{padding:"0 12px",marginTop:-34}}>
 
-        {/* ACCOUNTS */}
-        <div onClick={() => toggle("accounts")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>🏦</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Manage Accounts</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{accounts.length} account(s)</div>
+        {/* Progress bar card */}
+        {goalAmount>0&&(
+          <div style={{background:T.card,borderRadius:R.lg,padding:"14px",marginBottom:14,boxShadow:SH.card}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink}}>📊 Progress</div>
+              <div style={{fontSize:15,fontWeight:800,color:isAchieved?T.income:T.teal500,fontFamily:THEME.font.money}}>{pct}%</div>
+            </div>
+            <div style={{height:14,background:T.bgSoft,borderRadius:R.pill,overflow:"hidden",marginBottom:8}}>
+              <div style={{height:"100%",width:`${pct}%`,borderRadius:R.pill,
+                background:isAchieved?T.income:`linear-gradient(90deg,${T.teal500},${T.income})`,
+                transition:"width .6s"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:11,color:T.inkSoft}}>₹0</div>
+              <div style={{fontSize:11,color:T.inkSoft}}>{fmt(goalAmount)}</div>
+            </div>
+            <div style={{padding:"11px 12px",borderRadius:R.sm,
+              background:isAchieved?T.incomeSoft:T.bgSoft,
+              fontSize:13,fontWeight:600,
+              color:isAchieved?"#1E8E5A":T.inkSoft,textAlign:"center"}}>
+              {msg}
+            </div>
           </div>
-          {chevron("accounts")}
-        </div>
-        {section === "accounts" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>My Accounts</div>
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                style={{
-                  backgroundColor: "#F8FAFC",
-                  borderRadius: "12px",
-                  padding: "10px 12px",
-                  marginBottom: "10px",
-                }}
-              >
-                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                  <div style={{ fontSize: "22px" }}>{account.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "14px", fontWeight: 600 }}>{account.name}</div>
-                    <div style={{ fontSize: "11px", color: "#AAA" }}>{account.type} · {fmt(account.opening)}</div>
-                  </div>
-                  <FBtn outline color="#2D6A9F" onClick={() => startEditAccount(account)} style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}>Edit</FBtn>
-                  <FBtn outline color="#E53E3E" onClick={() => setDelAccId(account.id)} style={{ padding: "6px 10px", fontSize: "11px", width: "auto" }}>🗑</FBtn>
-                </div>
-                {delAccId === account.id && (
-                  <div style={{ backgroundColor: "#FFF5F5", border: "1px solid #FFE8E8", borderRadius: "12px", padding: "14px", marginTop: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#E53E3E", marginBottom: "10px" }}>Delete this account?</div>
-                    <div style={{ fontSize: "13px", color: "#999", marginBottom: "10px" }}>This cannot be undone.</div>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <FBtn outline color="#999" onClick={() => setDelAccId(null)} style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}>Cancel</FBtn>
-                      <FBtn bg="#E53E3E" onClick={() => deleteAccount(account.id)} style={{ flex: 1, padding: "8px 12px", fontSize: "12px" }}>Delete</FBtn>
-                    </div>
-                  </div>
-                )}
+        )}
+
+        {/* Summary rows */}
+        {goalAmount>0&&(
+          <div style={{background:T.card,borderRadius:R.lg,padding:"16px",marginBottom:14,boxShadow:SH.card}}>
+            {[
+              {label:"🎯 Goal Amount",   value:fmt(goalAmount),                        color:T.teal700},
+              {label:"💰 Total Balance", value:fmt(totalTracked),                      color:T.teal500},
+              {label:"📉 Still Needed",  value:isAchieved?"₹0 — Achieved!":fmt(needed), color:isAchieved?T.income:T.expense},
+            ].map((row,i,arr)=>(
+              <div key={row.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"12px 0",borderBottom:i<arr.length-1?`1px solid ${T.line}`:"none"}}>
+                <div style={{fontSize:13,color:T.inkSoft}}>{row.label}</div>
+                <div style={{fontSize:15,fontWeight:800,color:row.color,fontFamily:THEME.font.money}}>{row.value}</div>
               </div>
             ))}
-            <div style={{ paddingTop: "12px", borderTop: "1px solid #F0F0F0", marginTop: "12px" }}>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: "#555", marginBottom: "10px" }}>
-                {editAccId ? "Edit Account" : "Add New Account"}
-              </div>
-              <FInput placeholder="Account Name" value={accForm.name} onChange={(e) => setAccForm({ ...accForm, name: e.target.value })} style={{ marginBottom: "10px" }} />
-              <ChipRow
-                items={ACCOUNT_TYPES}
-                value={accForm.type}
-                onChange={(type) => setAccForm({ ...accForm, type, icon: ACCOUNT_TYPES.find((a) => a.type === type)?.icon })}
-              />
-              <FInput type="number" placeholder="Opening Balance" value={accForm.opening} onChange={(e) => setAccForm({ ...accForm, opening: e.target.value })} style={{ marginBottom: "12px" }} />
-              <div style={{ display: "flex", gap: "8px" }}>
-                {editAccId && (
-                  <FBtn outline color="#999" onClick={() => { setEditAccId(null); setAccForm({ name: "", type: "Cash", icon: "💵", opening: "" }); }} style={{ flex: 1 }}>Cancel</FBtn>
-                )}
-                <FBtn onClick={saveAccount} style={{ flex: 1 }}>{editAccId ? "Update Account" : "Save Account"}</FBtn>
+          </div>
+        )}
+
+        {/* Estimate */}
+        {goalAmount>0&&!isAchieved&&(
+          <div style={{background:T.card,borderRadius:R.lg,padding:"16px",marginBottom:14,boxShadow:SH.card}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>⏱️ Estimate to Reach Goal</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontSize:13,color:T.inkSoft}}>Monthly Surplus</div>
+              <div style={{fontSize:14,fontWeight:700,color:monthlySaving>0?T.income:T.expense}}>
+                {monthlySaving>0?fmt(monthlySaving):"No surplus"}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* DECLARED TOTAL */}
-        <div onClick={() => toggle("declared")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>💼</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Declared Total</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{declaredAmount > 0 ? fmt(declaredAmount) : "Not set"}</div>
-          </div>
-          {chevron("declared")}
-        </div>
-        {section === "declared" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Declared Total</div>
-            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Your known total wealth — savings, fixed deposits, cash at home etc. Dashboard shows the difference between this and what the app has calculated.</div>
-            <FInput
-              type="number"
-              value={daTemp}
-              onChange={(e) => setDaTemp(e.target.value)}
-              placeholder={declaredAmount > 0 ? fmt(declaredAmount) : "₹ 0"}
-              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              {declaredAmount > 0 && (
-                <FBtn bg="#E53E3E" onClick={() => { setDeclaredAmount(0); setDaTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
-              )}
-              <FBtn onClick={() => { setDeclaredAmount(parseFloat(daTemp) || 0); setDaTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
-            </div>
-          </div>
-        )}
-
-        {/* SAVINGS GOAL */}
-        <div onClick={() => toggle("goal")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>🎯</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Savings Goal</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{goalAmount > 0 ? "Target: " + fmt(goalAmount) : "Not set"}</div>
-          </div>
-          {chevron("goal")}
-        </div>
-        {section === "goal" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Savings Goal</div>
-            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Set a target amount you want to save. Goal tab shows a progress bar, how much is still needed, and a motivational message.</div>
-            <FInput
-              type="number"
-              value={goalTemp}
-              onChange={(e) => setGoalTemp(e.target.value)}
-              placeholder={goalAmount > 0 ? fmt(goalAmount) : "₹ 0"}
-              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              {goalAmount > 0 && (
-                <FBtn bg="#E53E3E" onClick={() => { setGoalAmount(0); setGoalTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
-              )}
-              <FBtn onClick={() => { setGoalAmount(parseFloat(goalTemp) || 0); setGoalTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
-            </div>
-          </div>
-        )}
-
-        {/* MANUAL CHECK */}
-        <div onClick={() => toggle("manual")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>🔎</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Manual Check</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{manualCheck > 0 ? "Your count: " + fmt(manualCheck) : "Not set"}</div>
-          </div>
-          {chevron("manual")}
-        </div>
-        {section === "manual" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Manual Check</div>
-            <div style={{ fontSize: "12px", color: "#999", marginBottom: "12px" }}>Physically count your cash and enter it here. Dashboard compares this against the app's calculated total and tells you if you have more or less than expected.</div>
-            <FInput
-              type="number"
-              value={mcTemp}
-              onChange={(e) => setMcTemp(e.target.value)}
-              placeholder={manualCheck > 0 ? fmt(manualCheck) : "₹ 0"}
-              style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              {manualCheck > 0 && (
-                <FBtn bg="#E53E3E" onClick={() => { setManualCheck(0); setMcTemp(""); setSection(null); }} style={{ flex: 1 }}>Remove</FBtn>
-              )}
-              <FBtn onClick={() => { setManualCheck(parseFloat(mcTemp) || 0); setMcTemp(""); setSection(null); }} style={{ flex: 1 }}>Save</FBtn>
-            </div>
-          </div>
-        )}
-
-        {/* PIN LOCK */}
-        <div onClick={() => toggle("pin")} style={menuRowStyle}>
-          <div style={iconBoxStyle}>🔒</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>PIN Lock</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>{pinEnabled ? "Enabled · tap to change" : "Disabled"}</div>
-          </div>
-          {chevron("pin")}
-        </div>
-        {section === "pin" && (
-          <div style={cardStyle}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "14px" }}>PIN Lock</div>
-            {pinEnabled ? (
-              <div style={{ display: "flex", gap: "8px" }}>
-                <FBtn outline color="#2D6A9F" onClick={() => setShowPinSet(true)} style={{ flex: 1 }}>🔄 Change PIN</FBtn>
-                <FBtn bg="#E53E3E" onClick={() => { setPinEnabled(false); setPin(""); setSection(null); }} style={{ flex: 1 }}>🔓 Disable</FBtn>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontSize:13,color:T.inkSoft}}>Time Needed</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.teal500}}>
+                {monthsNeeded ? (monthsNeeded===1?"~1 month":`~${monthsNeeded} months`) : "—"}
               </div>
-            ) : (
-              <FBtn onClick={() => setShowPinSet(true)}>🔒 Set PIN</FBtn>
-            )}
-            {showPinSet && (
-              <PinScreen
-                mode="set"
-                onSuccess={(newPin) => { setPin(newPin); setPinEnabled(true); setShowPinSet(false); setSection(null); }}
-                onCancel={() => setShowPinSet(false)}
-              />
+            </div>
+            {monthlySaving<=0&&(
+              <div style={{marginTop:10,padding:"9px 12px",borderRadius:R.sm,background:T.goldSoft,
+                fontSize:12,color:"#946A1F"}}>
+                Reduce your expenses to create a monthly surplus toward your goal.
+              </div>
             )}
           </div>
         )}
 
-        {/* NON-FUNCTIONAL rows */}
-        <div style={menuRowStaticStyle}>
-          <div style={iconBoxStyle}>👤</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Profile</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Name, currency</div>
+        {/* Achievement */}
+        {isAchieved&&(
+          <div style={{background:G.income,borderRadius:R.lg,
+            padding:"16px",marginBottom:14,textAlign:"center",color:"white",boxShadow:"0 8px 24px rgba(52,211,153,0.35)"}}>
+            <div style={{fontSize:44,marginBottom:8}}>🎉</div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Goal Achieved!</div>
+            <div style={{fontSize:13,opacity:.85}}>
+              You reached your target of {fmt(goalAmount)}. Go to Settings to set a new goal!
+            </div>
           </div>
-        </div>
-        <div style={menuRowStaticStyle}>
-          <div style={iconBoxStyle}>🔔</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Notifications</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Daily reminders</div>
-          </div>
-        </div>
-        <div style={menuRowStaticStyle}>
-          <div style={iconBoxStyle}>💾</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>Backup</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Export as CSV</div>
-          </div>
-        </div>
-        <div style={menuRowStaticStyle}>
-          <div style={iconBoxStyle}>ℹ️</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "15px", fontWeight: 700, color: "#222" }}>About</div>
-            <div style={{ fontSize: "12px", color: "#999", marginTop: "1px" }}>Version 1.2.0</div>
-          </div>
-        </div>
+        )}
 
+        {/* Hint if no goal — clean, no ugly instruction card */}
+        {goalAmount===0&&(
+          <div style={{textAlign:"center",padding:"40px 20px",color:"#BBB"}}>
+            <div style={{fontSize:13}}>Go to <b style={{color:T.teal500}}>⚙️ Settings → 🎯 Savings Goal</b> to set your target</div>
+          </div>
+        )}
       </div>
     </div>
   );
-};
+}
 
-// 13. Goal component
-const Goal = ({ transactions, accounts, goalAmount }) => {
-  const accountBalances = useMemo(() => calcAccountBalances(accounts, transactions), [accounts, transactions]);
-  const totalTracked = useMemo(() => {
-    return accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-  }, [accountBalances]);
+// ─── PAY TAB (read-only UPI display) ──────────────────────────────────────────
+function Pay({ upiList }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [copiedId, setCopiedId]     = useState(null);
 
-  const { totalIncome, totalExpense, monthlySaving } = useMemo(() => {
-    const income = transactions
-      .filter((tx) => tx.type === "income")
-      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-    const expense = transactions
-      .filter((tx) => tx.type === "expense")
-      .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-    return { totalIncome: income, totalExpense: expense, monthlySaving: income - expense };
-  }, [transactions]);
+  const copyUpi = (id, upiId) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(upiId).catch(()=>{});
+    } else {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = upiId;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopiedId(id);
+    setTimeout(()=>setCopiedId(c=>c===id?null:c), 1500);
+  };
 
-  const pct = goalAmount > 0 ? Math.min(100, Math.round((totalTracked / goalAmount) * 100)) : 0;
-  const needed = Math.max(0, goalAmount - totalTracked);
-  const isAchieved = goalAmount > 0 && totalTracked >= goalAmount;
-  const monthsNeeded = monthlySaving > 0 && needed > 0 ? Math.ceil(needed / monthlySaving) : null;
+  return (
+    <div>
+      <div style={{background:G.header,padding:"22px 16px 18px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>QUICK PAY</div>
+        <div style={{fontSize:20,fontWeight:700,fontFamily:THEME.font.money}}>Pay</div>
+      </div>
 
-  let message = "";
-  if (pct >= 100) message = "🎉 Goal achieved! Set a new one!";
-  else if (pct >= 67) message = "Almost there, don't stop now! 🔥";
-  else if (pct >= 34) message = "Halfway there, great progress! 🚀";
-  else if (pct > 0) message = "Keep saving, you're on your way! 💪";
-  else message = "Set a goal from Settings to start!";
+      <div style={{padding:"10px 12px"}}>
+        {upiList.length===0 && (
+          <div style={{textAlign:"center",padding:"50px 0",color:"#9FB3AD"}}>
+            <div style={{fontSize:40,marginBottom:10}}>📱</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.ink}}>No UPI IDs saved</div>
+            <div style={{fontSize:12,marginTop:4}}>Add one from ⚙️ Settings → UPI IDs</div>
+          </div>
+        )}
+
+        {upiList.map(u=>{
+          const isOpen = expandedId===u.id;
+          return (
+            <div key={u.id} style={{background:T.card,borderRadius:R.lg,padding:"16px",marginBottom:14,boxShadow:SH.card}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:44,height:44,borderRadius:13,background:T.mintSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>📱</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:700,color:T.ink}}>{u.label}</div>
+                  <div style={{fontSize:12,color:T.inkSoft,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.upiId}</div>
+                </div>
+                <button onClick={()=>copyUpi(u.id,u.upiId)} style={{padding:"8px 14px",borderRadius:R.sm,
+                  border:`1.5px solid ${copiedId===u.id?T.income:T.line}`,
+                  background:copiedId===u.id?T.incomeSoft:"#F0F6FF",
+                  color:copiedId===u.id?"#1E8E5A":T.teal500,
+                  fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0,fontFamily:THEME.font.body}}>
+                  {copiedId===u.id?"✓ Copied":"📋 Copy"}
+                </button>
+              </div>
+
+              {u.qr && (
+                <div onClick={()=>setExpandedId(isOpen?null:u.id)} style={{marginTop:12,cursor:"pointer",textAlign:"center"}}>
+                  <div style={{
+                    overflow:"hidden",
+                    maxHeight:isOpen?320:72,
+                    transition:"max-height .3s ease",
+                    display:"flex",justifyContent:"center"
+                  }}>
+                    <img src={u.qr} alt={`${u.label} QR`} style={{
+                      width:isOpen?240:72, height:isOpen?240:72,
+                      borderRadius:R.md, objectFit:"contain",
+                      border:`1.5px solid ${T.line}`, display:"block",
+                      background:T.bgSoft
+                    }}/>
+                  </div>
+                  <div style={{fontSize:11,color:T.inkSoft,marginTop:6}}>{isOpen?"▲ Tap to collapse":"▼ Tap to expand QR"}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── PROFILE SCREEN ────────────────────────────────────────────────────────────
+function Profile({ profile, setProfile, transactions, accounts, onBack }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm]       = useState(profile);
+
+  const validAccountNames = new Set((accounts||[]).map(a=>a.name));
+  const totalIncome  = transactions.filter(t=>t.type==="income"  && validAccountNames.has(t.account)).reduce((s,t)=>s+t.amount,0);
+  const totalExpense = transactions.filter(t=>t.type==="expense" && validAccountNames.has(t.account)).reduce((s,t)=>s+t.amount,0);
+  const totalSaved   = Math.max(0, totalIncome - totalExpense);
+  const txCount      = transactions.length;
+
+  const handleAvatar = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (compressed) => setForm(f=>({...f, avatar: compressed})));
+  };
+
+  const initials = (form.name || "U").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+
+  const save = () => { setProfile(form); setEditing(false); };
+  const startEdit = () => { setForm(profile); setEditing(true); };
+  const cancel = () => { setForm(profile); setEditing(false); };
+
+  return (
+    <div>
+      <div style={{background:G.header,padding:"22px 16px 22px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={onBack} style={{background:T.glass,border:`1px solid ${T.glassBorder}`,borderRadius:12,width:36,height:36,color:"white",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>‹</button>
+          <div>
+            <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>ACCOUNT</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:THEME.font.money}}>Profile</div>
+          </div>
+        </div>
+        {editing
+          ? <div style={{display:"flex",gap:8}}>
+              <button onClick={cancel} style={{background:T.glass,border:`1px solid ${T.glassBorder}`,borderRadius:10,padding:"8px 14px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancel</button>
+              <button onClick={save} style={{background:T.gold,border:"none",borderRadius:10,padding:"8px 14px",color:T.teal900,fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+            </div>
+          : <button onClick={startEdit} style={{background:T.glass,border:`1px solid ${T.glassBorder}`,borderRadius:10,padding:"8px 14px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>✏️ Edit</button>
+        }
+      </div>
+
+      <div style={{padding:"0 12px",marginTop:-24}}>
+
+        {/* Avatar card */}
+        <div style={{background:T.card,borderRadius:R.lg,padding:"16px",marginBottom:14,boxShadow:SH.card,textAlign:"center"}}>
+          <div style={{position:"relative",display:"inline-block"}}>
+            {(editing?form.avatar:profile.avatar)
+              ? <img src={editing?form.avatar:profile.avatar} alt="Avatar" style={{width:84,height:84,borderRadius:"50%",objectFit:"cover",border:`3px solid ${T.mintSoft}`}}/>
+              : <div style={{width:84,height:84,borderRadius:"50%",background:G.primary,display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:28,fontWeight:800,fontFamily:THEME.font.money}}>{initials}</div>
+            }
+            {editing && (
+              <label style={{position:"absolute",bottom:0,right:0,width:28,height:28,borderRadius:"50%",background:T.gold,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,cursor:"pointer",border:"2px solid white"}}>
+                📷
+                <input type="file" accept="image/*" onChange={handleAvatar} style={{display:"none"}}/>
+              </label>
+            )}
+          </div>
+          {editing
+            ? <FInput value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name" style={{marginTop:14,textAlign:"center",fontWeight:700}}/>
+            : <div style={{fontSize:17,fontWeight:700,color:T.ink,marginTop:12}}>{profile.name || "Your Name"}</div>
+          }
+        </div>
+
+        {/* Financial Summary */}
+        <div style={{display:"flex",gap:10,marginBottom:14}}>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.income}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TOTAL SAVED</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.income}}>{fmt(totalSaved)}</div>
+          </div>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.expense}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TOTAL SPENT</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.expense}}>{fmt(totalExpense)}</div>
+          </div>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.teal500}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TRANSACTIONS</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.teal500}}>{txCount}</div>
+          </div>
+        </div>
+
+        {/* Details */}
+        <div style={{background:T.card,borderRadius:R.lg,padding:"14px",marginBottom:14,boxShadow:SH.card}}>
+          <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:14}}>Personal Details</div>
+
+          <Label>OCCUPATION</Label>
+          {editing
+            ? <ChipRow items={OCCUPATIONS} selected={form.occupation} onSelect={v=>setForm({...form,occupation:v})}/>
+            : <div style={{fontSize:14,color:T.ink,fontWeight:600,marginBottom:14}}>{profile.occupation}</div>
+          }
+
+          <Label>MONTHLY INCOME</Label>
+          {editing
+            ? <FInput value={form.monthlyIncome} onChange={e=>setForm({...form,monthlyIncome:e.target.value})} placeholder="₹ 0" type="number" style={{marginBottom:14}}/>
+            : <div style={{fontSize:14,color:T.ink,fontWeight:600,marginBottom:14}}>{profile.monthlyIncome?fmt(profile.monthlyIncome):"Not set"}</div>
+          }
+
+          <Label>LANGUAGE</Label>
+          {editing
+            ? <ChipRow items={LANGUAGES} selected={form.language} onSelect={v=>setForm({...form,language:v})}/>
+            : <div style={{fontSize:14,color:T.ink,fontWeight:600,marginBottom:14}}>{profile.language}</div>
+          }
+
+          <Label>DATE FORMAT</Label>
+          {editing
+            ? <ChipRow items={DATE_FORMATS} selected={form.dateFormat} onSelect={v=>setForm({...form,dateFormat:v})}/>
+            : <div style={{fontSize:14,color:T.ink,fontWeight:600}}>{profile.dateFormat}</div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ACCOUNTS SCREEN (full page, like Profile) ────────────────────────────────
+function AccountsScreen({ accounts, setAccounts, transactions, setTransactions, openingBalance, setOpeningBalance, declaredAmount, setDeclaredAmount, goalAmount, setGoalAmount, onBack }) {
+  const [section, setSection]   = useState(null);
+  const [accForm, setAccForm]   = useState({name:"",type:"Cash",icon:"💵",opening:""});
+  const [editAccId, setEditAccId] = useState(null);
+  const [delAccId, setDelAccId] = useState(null);
+  const [obTemp, setObTemp]     = useState("");
+  const [daTemp, setDaTemp]     = useState("");
+  const [goalTemp, setGoalTemp] = useState("");
+
+  const toggle = (key) => setSection(s => s===key ? null : key);
+
+  const saveAccount = () => {
+    if (!accForm.name.trim()) return;
+    const entry = {...accForm, opening: parseFloat(accForm.opening)||0};
+    if (editAccId) {
+      const oldAcc = accounts.find(a=>a.id===editAccId);
+      setAccounts(prev=>prev.map(a=>a.id===editAccId?{...entry,id:editAccId}:a));
+      // Transactions reference accounts by name, so a rename must cascade
+      // or every past transaction silently falls off that account's balance.
+      if (oldAcc && oldAcc.name !== entry.name) {
+        setTransactions(prev=>prev.map(t=>(
+          t.account===oldAcc.name || t.toAccount===oldAcc.name
+            ? { ...t,
+                account:   t.account===oldAcc.name   ? entry.name : t.account,
+                toAccount: t.toAccount===oldAcc.name ? entry.name : t.toAccount }
+            : t
+        )));
+      }
+    } else {
+      setAccounts(prev=>[...prev,{...entry,id:Date.now()}]);
+    }
+    setAccForm({name:"",type:"Cash",icon:"💵",opening:""}); setEditAccId(null);
+  };
+  const txCountFor   = (name) => transactions.filter(t=>t.account===name||t.toAccount===name).length;
+  const deleteAcc    = (id) => { setAccounts(prev=>prev.filter(a=>a.id!==id)); setDelAccId(null); };
+  const startEditAcc = (a)  => { setAccForm({...a,opening:String(a.opening)}); setEditAccId(a.id); setSection("myaccounts"); };
+
+  const Row = ({icon,title,sub,id}) => (
+    <div onClick={()=>toggle(id)} style={{background:T.card,borderRadius:R.lg,padding:"14px 16px",
+      marginBottom:12,boxShadow:SH.card,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+      <div style={{width:44,height:44,borderRadius:13,background:section===id?T.mintSoft:T.bgSoft,
+        flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{icon}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.ink}}>{title}</div>
+        <div style={{fontSize:12,color:T.inkSoft,marginTop:1}}>{sub}</div>
+      </div>
+      <div style={{color:section===id?T.teal500:"#9FB3AD",fontSize:18,
+        transform:section===id?"rotate(90deg)":"none",transition:"transform .2s"}}>›</div>
+    </div>
+  );
 
   return (
     <div>
       {/* Header */}
-      <div style={{ background: T.headerGrad, padding: "32px 20px 80px", color: "white", borderRadius: "0 0 32px 32px" }}>
-        <div style={{ fontSize: "11px", opacity: 0.55, letterSpacing: "1.5px", fontWeight: 600 }}>SAVINGS</div>
-        <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.5px", marginTop: "2px", marginBottom: "22px" }}>My Goal</div>
-
-        {goalAmount > 0 ? (
-          <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-            <div
-              style={{
-                borderBottom: "1px solid rgba(255,255,255,0.15)",
-                marginBottom: "18px",
-                paddingBottom: "18px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.65,
-                  letterSpacing: "0.5px",
-                  marginBottom: "6px",
-                }}
-              >
-                🎯 MY GOAL
-              </div>
-              <div style={{ fontSize: "34px", fontWeight: 800, color: "#7EFFC5" }}>
-                {fmt(goalAmount)}
-              </div>
-            </div>
-            <div
-              style={{
-                borderBottom: "1px solid rgba(255,255,255,0.15)",
-                marginBottom: "18px",
-                paddingBottom: "18px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.65,
-                  letterSpacing: "0.5px",
-                  marginBottom: "6px",
-                }}
-              >
-                💰 TOTAL BALANCE
-              </div>
-              <div style={{ fontSize: "28px", fontWeight: 800, color: "white" }}>
-                {fmt(totalTracked)}
-              </div>
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.65,
-                  letterSpacing: "0.5px",
-                  marginBottom: "6px",
-                }}
-              >
-                {isAchieved ? "✅ STATUS" : "📉 STILL NEEDED"}
-              </div>
-              <div
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 800,
-                  color: isAchieved ? "#1DB954" : "#FF9E9E",
-                }}
-              >
-                {isAchieved ? "Goal Achieved!" : fmt(needed)}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ background: T.glass, borderRadius: T.r24, padding: "20px 22px", border: `1px solid ${T.glassBorder}`, textAlign: "center", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-            <div style={{ fontSize: "36px", marginBottom: "10px" }}>🎯</div>
-            <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "6px" }}>
-              No Goal Set
-            </div>
-            <div style={{ fontSize: "12px", opacity: 0.65 }}>
-              Go to Settings → Savings Goal to set your target amount
-            </div>
-          </div>
-        )}
+      <div style={{background:G.header,padding:"24px 16px 22px",color:"white",
+        borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card,
+        display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={onBack} style={{background:T.glass,border:`1px solid ${T.glassBorder}`,
+          borderRadius:12,width:36,height:36,color:"white",fontSize:20,cursor:"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>‹</button>
+        <div>
+          <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>SETTINGS</div>
+          <div style={{fontSize:20,fontWeight:700}}>Accounts & Balances</div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div style={{ padding: "0 16px", marginBottom: "80px", marginTop: "-40px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", backgroundColor: T.surface }}>
-        {goalAmount > 0 && (
-          <>
-            {/* Progress card */}
-            <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#222",
-                  }}
-                >
-                  📊 Progress
+      <div style={{padding:"14px 12px"}}>
+
+        {/* ── MY ACCOUNTS ── */}
+        <Row icon="💳" title="My Accounts" sub={`${accounts.length} account${accounts.length!==1?"s":""} · add or edit`} id="myaccounts"/>
+        {section==="myaccounts" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
+            {accounts.length===0 && <div style={{fontSize:13,color:"#9FB3AD",marginBottom:10}}>No accounts yet. Add one below.</div>}
+            {accounts.map(a=>(
+              <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,
+                padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+                <span style={{fontSize:20}}>{a.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{a.name}</div>
+                  <div style={{fontSize:11,color:T.inkSoft}}>{a.type} · Opening {fmt(a.opening)}</div>
                 </div>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 800,
-                    color: isAchieved ? "#1DB954" : "#2D6A9F",
-                  }}
-                >
-                  {pct}%
+                <button onClick={()=>startEditAcc(a)} style={{padding:"5px 10px",borderRadius:8,
+                  border:`1.5px solid ${T.line}`,background:"#F0F6FF",color:T.teal500,
+                  fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                <button onClick={()=>setDelAccId(a.id)} style={{padding:"5px 10px",borderRadius:8,
+                  border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,
+                  fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+            ))}
+            {delAccId && (()=>{
+              const linkedCount = txCountFor(accounts.find(a=>a.id===delAccId)?.name);
+              return (
+                <div style={{padding:"12px",borderRadius:12,background:T.expenseSoft,
+                  border:"1.5px solid #FBD5D5",marginBottom:10}}>
+                  <div style={{fontSize:13,fontWeight:700,color:T.expense,marginBottom:8}}>Delete this account?</div>
+                  {linkedCount>0 && (
+                    <div style={{fontSize:12,color:"#946A1F",marginBottom:8}}>
+                      ⚠️ {linkedCount} transaction{linkedCount!==1?"s":""} reference this account. They'll stay in your history but will no longer count toward Income/Expense totals or any account balance.
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:8}}>
+                    <FBtn onClick={()=>setDelAccId(null)} outline color={T.inkSoft} style={{flex:1,padding:"9px"}}>Cancel</FBtn>
+                    <FBtn onClick={()=>deleteAcc(delAccId)} bg={G.expense} style={{flex:1,padding:"9px"}}>Delete</FBtn>
+                  </div>
                 </div>
+              );
+            })()}
+            <div style={{paddingTop:12,borderTop:`1px solid ${T.line}`,marginTop:4}}>
+              <div style={{fontSize:12,fontWeight:700,color:T.inkSoft,marginBottom:8,letterSpacing:.4}}>
+                {editAccId?"✏️ EDIT ACCOUNT":"➕ ADD NEW ACCOUNT"}
               </div>
-              <div
-                style={{
-                  height: "14px",
-                  backgroundColor: "#F0F4F8",
-                  borderRadius: "10px",
-                  overflow: "hidden",
-                  marginBottom: "8px",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${pct}%`,
-                    height: "100%",
-                    borderRadius: "10px",
-                    background:
-                      isAchieved
-                        ? "#1DB954"
-                        : "linear-gradient(90deg,#2D6A9F,#1DB954)",
-                    transition: "width 0.6s",
-                  }}
-                ></div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                }}
-              >
-                <div style={{ fontSize: "11px", color: "#AAA" }}>₹0</div>
-                <div style={{ fontSize: "11px", color: "#AAA" }}>
-                  {fmt(goalAmount)}
-                </div>
-              </div>
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "12px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textAlign: "center",
-                  backgroundColor: isAchieved ? "#E8FBF0" : "#F0F4F8",
-                  color: isAchieved ? "#1DB954" : "#666",
-                }}
-              >
-                {message}
+              <FInput value={accForm.name} onChange={e=>setAccForm({...accForm,name:e.target.value})}
+                placeholder="Account name (e.g. SBI Bank)" style={{marginBottom:8}}/>
+              <ChipRow items={ACCOUNT_TYPES} selected={accForm.type}
+                onSelect={v=>{const at=ACCOUNT_TYPES.find(a=>a.type===v);setAccForm({...accForm,type:v,icon:at?.icon||"💰"});}}/>
+              <FInput value={accForm.opening} onChange={e=>setAccForm({...accForm,opening:e.target.value})}
+                placeholder="₹ Opening balance (no transaction recorded)" type="number" style={{marginBottom:10}}/>
+              <div style={{display:"flex",gap:8}}>
+                {editAccId&&<FBtn onClick={()=>{setAccForm({name:"",type:"Cash",icon:"💵",opening:""});setEditAccId(null);}}
+                  outline color={T.inkSoft} style={{flex:1,padding:"11px"}}>Cancel</FBtn>}
+                <FBtn onClick={saveAccount} style={{flex:1,padding:"11px"}}>
+                  {editAccId?"Update Account":"Add Account"}
+                </FBtn>
               </div>
             </div>
-
-            {/* Summary rows card */}
-            <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid #F5F5F5",
-                  marginBottom: "12px",
-                }}
-              >
-                <div style={{ color: "#666", fontSize: "13px" }}>🎯 Goal Amount</div>
-                <div
-                  style={{
-                    color: "#1E3A5F",
-                    fontSize: "15px",
-                    fontWeight: 800,
-                  }}
-                >
-                  {fmt(goalAmount)}
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid #F5F5F5",
-                  marginBottom: "12px",
-                }}
-              >
-                <div style={{ color: "#666", fontSize: "13px" }}>💰 Total Balance</div>
-                <div
-                  style={{
-                    color: "#2D6A9F",
-                    fontSize: "15px",
-                    fontWeight: 800,
-                  }}
-                >
-                  {fmt(totalTracked)}
-                </div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <div style={{ color: "#666", fontSize: "13px" }}>📉 Still Needed</div>
-                <div
-                  style={{
-                    color: isAchieved ? "#1DB954" : "#E53E3E",
-                    fontSize: "15px",
-                    fontWeight: 800,
-                  }}
-                >
-                  {isAchieved ? "₹0 — Achieved!" : fmt(needed)}
-                </div>
-              </div>
-            </div>
-
-            {/* Estimate card */}
-            {!isAchieved && (
-              <div style={{ backgroundColor: T.surfaceCard, borderRadius: T.r20, padding: "18px", marginBottom: "14px", boxShadow: T.shadowCard }}>
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#222",
-                    marginBottom: "12px",
-                  }}
-                >
-                  ⏱️ Estimate to Reach Goal
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#666" }}>
-                    Monthly Surplus
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: monthlySaving > 0 ? "#1DB954" : "#E53E3E",
-                    }}
-                  >
-                    {monthlySaving > 0 ? fmt(monthlySaving) : "No surplus"}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#666" }}>
-                    Time Needed
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#2D6A9F",
-                    }}
-                  >
-                    {monthsNeeded ? `~${monthsNeeded} month(s)` : "—"}
-                  </div>
-                </div>
-                {monthlySaving <= 0 && (
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      padding: "8px 12px",
-                      borderRadius: "10px",
-                      backgroundColor: "#FFF8F0",
-                      color: "#E07B54",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Reduce your expenses to create a monthly surplus toward your goal.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Achievement banner */}
-            {isAchieved && (
-              <div
-                style={{
-                  background: "linear-gradient(135deg,#1DB954,#0E9E46)",
-                  borderRadius: "18px",
-                  padding: "22px",
-                  marginBottom: "14px",
-                  textAlign: "center",
-                  color: "white",
-                }}
-              >
-                <div style={{ fontSize: "44px", marginBottom: "8px" }}>🎉</div>
-                <div style={{ fontSize: "18px", fontWeight: 800, marginBottom: "6px" }}>
-                  Goal Achieved!
-                </div>
-                <div style={{ fontSize: "13px", opacity: 0.85 }}>
-                  You reached your target of {fmt(goalAmount)}. Go to Settings to set a
-                  new goal!
-                </div>
-              </div>
-            )}
-          </>
-        )} 
-
-        {goalAmount === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "#BBB", fontSize: "13px" }}>
-            Go to ⚙️ Settings → 🎯 Savings Goal to set your target.
           </div>
         )}
+
+        {/* ── OPENING BALANCE ── */}
+        <Row icon="💵" title="Opening Balance" sub={openingBalance>0?`Set to ${fmt(openingBalance)}`:"Not set · extra starting amount"} id="opening"/>
+        {section==="opening" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"14px",marginBottom:12}}>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:12,lineHeight:1.5}}>
+              A global extra starting amount added to your total balance — on top of individual account balances. Use this for cash at home or savings not linked to any account.
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <FInput value={obTemp} onChange={e=>setObTemp(e.target.value)}
+                placeholder={openingBalance>0?fmt(openingBalance):"₹ 0"} type="number"
+                style={{flex:1,fontSize:18,fontWeight:700}}/>
+              {openingBalance>0&&<FBtn onClick={()=>{setOpeningBalance(0);setObTemp("");}}
+                bg={G.expense} style={{padding:"12px 14px",flexShrink:0}}>🗑</FBtn>}
+              <FBtn onClick={()=>{setOpeningBalance(parseFloat(obTemp)||0);setObTemp("");}}
+                style={{padding:"12px 18px",flexShrink:0}}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ── DECLARED TOTAL ── */}
+        <Row icon="💼" title="Declared Total" sub={declaredAmount>0?`Declared: ${fmt(declaredAmount)}`:"Not set · your known total wealth"} id="declared"/>
+        {section==="declared" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"14px",marginBottom:12}}>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:12,lineHeight:1.5}}>
+              Your total known wealth — savings, fixed deposits, cash at home, etc. Dashboard shows the difference between this and what the app has calculated, so you can see if anything is unaccounted.
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <FInput value={daTemp} onChange={e=>setDaTemp(e.target.value)}
+                placeholder={declaredAmount>0?fmt(declaredAmount):"₹ 0"} type="number"
+                style={{flex:1,fontSize:18,fontWeight:700}}/>
+              {declaredAmount>0&&<FBtn onClick={()=>{setDeclaredAmount(0);setDaTemp("");}}
+                bg={G.expense} style={{padding:"12px 14px",flexShrink:0}}>🗑</FBtn>}
+              <FBtn onClick={()=>{setDeclaredAmount(parseFloat(daTemp)||0);setDaTemp("");}}
+                style={{padding:"12px 18px",flexShrink:0}}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ── SAVINGS GOAL ── */}
+        <Row icon="🎯" title="Savings Goal" sub={goalAmount>0?`Target: ${fmt(goalAmount)}`:"Not set · set your savings target"} id="goal"/>
+        {section==="goal" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"14px",marginBottom:12}}>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:12,lineHeight:1.5}}>
+              Set a target amount you want to save. The Goal tab shows a live progress bar, how much is still needed, and an estimated time to reach it.
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <FInput value={goalTemp} onChange={e=>setGoalTemp(e.target.value)}
+                placeholder={goalAmount>0?fmt(goalAmount):"₹ 0"} type="number"
+                style={{flex:1,fontSize:18,fontWeight:700}}/>
+              {goalAmount>0&&<FBtn onClick={()=>{setGoalAmount(0);setGoalTemp("");}}
+                bg={G.expense} style={{padding:"12px 14px",flexShrink:0}}>🗑</FBtn>}
+              <FBtn onClick={()=>{setGoalAmount(parseFloat(goalTemp)||0);setGoalTemp("");}}
+                style={{padding:"12px 18px",flexShrink:0}}>Save</FBtn>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
-};
+}
 
-// 14. Main App component
-const App = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [accounts, setAccounts] = useLS("fm_accounts", SEED_ACCOUNTS);
-  const [transactions, setTransactions] = useLS("fm_transactions", SEED_TX);
-  const [loans, setLoans] = useLS("fm_loans", SEED_LOANS);
-  const [declaredAmount, setDeclaredAmount] = useLS("fm_declared", 0);
-  const [goalAmount, setGoalAmount] = useLS("fm_goal", 0);
-  const [manualCheck, setManualCheck] = useLS("fm_manual", 0);
-  const [pin, setPin] = useLS("fm_pin", "");
-  const [pinEnabled, setPinEnabled] = useLS("fm_pin_enabled", false);
-  const [pinVerified, setPinVerified] = useState(!pinEnabled);
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [tab,          setTab]          = useState("dashboard");
+  const [transactions, setTransactions] = useLS("fm_transactions",  SEED_TX);
+  const [loans,        setLoans]        = useLS("fm_loans",          SEED_LOANS);
+  const [accounts,     setAccounts]     = useLS("fm_accounts",       SEED_ACCOUNTS);
+  const [openingBalance, setOpeningBalance] = useLS("fm_opening",    0);
+  const [declaredAmount, setDeclaredAmount] = useLS("fm_declared",   0);
+  const [goalAmount,   setGoalAmount]   = useLS("fm_goal",           0);
+  const [manualCheck,  setManualCheck]  = useLS("fm_manual",         0);
+  const [pin,          setPin]          = useLS("fm_pin",            "");
+  const [pinEnabled,   setPinEnabled]   = useLS("fm_pin_enabled",    false);
+  const [upiList,      setUpiList]      = useLS("fm_upi",            SEED_UPI);
+  const [profile,      setProfile]      = useLS("fm_profile",        SEED_PROFILE);
+  const [notifyEnabled,setNotifyEnabled]= useLS("fm_notify",         false);
+  const [unlocked,     setUnlocked]     = useState(!pinEnabled);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showProfile,  setShowProfile]  = useState(false);
+  const [showAccounts, setShowAccounts] = useState(false);
 
-  // Reset pinVerified when PIN settings change
-  useEffect(() => {
-    setPinVerified(!pinEnabled);
-  }, [pinEnabled]);
+  useEffect(()=>{ if (!pinEnabled) setUnlocked(true); },[pinEnabled]);
 
-  if (pinEnabled && !pinVerified) {
+  if (pinEnabled && !unlocked) {
+    return <PinScreen mode="verify" savedPin={pin} onSuccess={()=>setUnlocked(true)}/>;
+  }
+
+  // Profile is a full-screen overlay
+  if (showProfile) {
     return (
-      <PinScreen
-        mode="verify"
-        savedPin={pin}
-        onSuccess={() => setPinVerified(true)}
-        onCancel={() => setPinVerified(false)}
-      />
+      <div style={{fontFamily:THEME.font.body,background:T.bgSoft,minHeight:"100vh",maxWidth:420,margin:"0 auto",overflowX:"hidden"}}>
+        <Profile profile={profile} setProfile={setProfile} transactions={transactions} accounts={accounts} onBack={()=>setShowProfile(false)}/>
+      </div>
     );
   }
 
-  return (
-    <div style={{ fontFamily: "Manrope, system-ui, sans-serif", backgroundColor: T.surface, minHeight: "100vh", maxWidth: "420px", margin: "auto", position: "relative", boxShadow: "0 0 40px rgba(13,33,55,0.08)" }}>
-      {activeTab === "dashboard" && (
-        <Dashboard
-          transactions={transactions}
-          loans={loans}
-          accounts={accounts}
-          declaredAmount={declaredAmount}
-          manualCheck={manualCheck}
-        />
-      )}
-      {activeTab === "transactions" && (
-        <Transactions
-          transactions={transactions}
-          setTransactions={setTransactions}
-          accounts={accounts}
-        />
-      )}
-      {activeTab === "loans" && <Loans loans={loans} setLoans={setLoans} />}
-      {activeTab === "goal" && (
-        <Goal
-          transactions={transactions}
-          accounts={accounts}
-          goalAmount={goalAmount}
-        />
-      )}
-      {activeTab === "settings" && (
-        <Settings
-          accounts={accounts}
-          setAccounts={setAccounts}
-          declaredAmount={declaredAmount}
-          setDeclaredAmount={setDeclaredAmount}
-          goalAmount={goalAmount}
-          setGoalAmount={setGoalAmount}
-          manualCheck={manualCheck}
-          setManualCheck={setManualCheck}
-          pin={pin}
-          setPin={setPin}
-          pinEnabled={pinEnabled}
-          setPinEnabled={setPinEnabled}
-        />
-      )}
+  // Accounts screen is a full-screen overlay
+  if (showAccounts) {
+    return (
+      <div style={{fontFamily:THEME.font.body,background:T.bgSoft,minHeight:"100vh",maxWidth:420,margin:"0 auto",overflowX:"hidden"}}>
+        <AccountsScreen
+          accounts={accounts} setAccounts={setAccounts}
+          transactions={transactions} setTransactions={setTransactions}
+          openingBalance={openingBalance} setOpeningBalance={setOpeningBalance}
+          declaredAmount={declaredAmount} setDeclaredAmount={setDeclaredAmount}
+          goalAmount={goalAmount} setGoalAmount={setGoalAmount}
+          onBack={()=>setShowAccounts(false)}/>
+      </div>
+    );
+  }
 
-      {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, width: "100%", maxWidth: "420px", backgroundColor: "rgba(255,255,255,0.96)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderTop: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", display: "flex", justifyContent: "space-around", padding: "10px 0 12px", boxShadow: T.shadowNav, zIndex: 200 }}>
-        {[["dashboard","🏠","Home"],["transactions","💳","Txns"],["loans","🤝","Loans"],["goal","🎯","Goal"],["settings","⚙️","More"]].map(([tab, icon, label]) => (
-          <div key={tab} className="mm-nav-tab" onClick={() => setActiveTab(tab)}
-            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0", cursor: "pointer", color: activeTab === tab ? T.teal : T.textMuted, fontSize: "11px", fontWeight: activeTab === tab ? 700 : 500 }}
-          >
-            <div style={{ fontSize: "22px", marginBottom: "2px", filter: activeTab === tab ? "drop-shadow(0 2px 6px rgba(46,196,182,0.4))" : "none" }}>{icon}</div>
-            <span style={{ letterSpacing: "0.2px" }}>{label}</span>
-            {activeTab === tab && <div style={{ width: "18px", height: "3px", borderRadius: "2px", background: T.btnGrad, marginTop: "4px" }} />}
-          </div>
+  const navItems = [
+    {id:"dashboard",    icon:"🏠", label:"Home"},
+    {id:"transactions", icon:"💳", label:"Txns"},
+    {id:"loans",        icon:"🤝", label:"Loans"},
+    {id:"goal",         icon:"🎯", label:"Goal"},
+    {id:"pay",          icon:"💸", label:"Pay"},
+  ];
+
+  return (
+    <div style={{fontFamily:THEME.font.body,background:T.bgSoft,
+      minHeight:"100vh",maxWidth:420,margin:"0 auto",paddingBottom:72,overflowX:"hidden"}}>
+
+      {tab==="dashboard"    && <Dashboard
+        transactions={transactions} setTransactions={setTransactions} loans={loans} accounts={accounts}
+        openingBalance={openingBalance} declaredAmount={declaredAmount}
+        manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
+
+      {tab==="transactions" && <Transactions
+        transactions={transactions} setTransactions={setTransactions} accounts={accounts}/>}
+
+      {tab==="loans"        && <Loans loans={loans} setLoans={setLoans}/>}
+
+      {tab==="goal"         && <Goal
+        transactions={transactions} accounts={accounts}
+        openingBalance={openingBalance}
+        goalAmount={goalAmount}/>}
+
+      {tab==="pay"          && <Pay upiList={upiList}/>}
+
+      {/* Settings — bottom sheet, opened via gear icon on Home */}
+      <SettingsSheet
+        open={settingsOpen} onClose={()=>setSettingsOpen(false)}
+        transactions={transactions} setTransactions={setTransactions}
+        loans={loans} setLoans={setLoans}
+        accounts={accounts} setAccounts={setAccounts}
+        openingBalance={openingBalance} setOpeningBalance={setOpeningBalance}
+        declaredAmount={declaredAmount} setDeclaredAmount={setDeclaredAmount}
+        goalAmount={goalAmount} setGoalAmount={setGoalAmount}
+        manualCheck={manualCheck} setManualCheck={setManualCheck}
+        pin={pin} setPin={setPin} pinEnabled={pinEnabled} setPinEnabled={setPinEnabled}
+        upiList={upiList} setUpiList={setUpiList}
+        notifyEnabled={notifyEnabled} setNotifyEnabled={setNotifyEnabled}
+        onOpenProfile={()=>setShowProfile(true)}
+        onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
+        profile={profile} setProfile={setProfile}/>
+
+      {/* Bottom Nav — glass blur, rounded top corners */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:420,
+        background:G.nav,backdropFilter:"blur(16px)",display:"flex",
+        borderRadius:`${R.xl}px ${R.xl}px 0 0`,padding:"8px 4px 10px",
+        boxShadow:SH.nav,border:`1px solid ${T.line}`,borderBottom:"none"}}>
+        {navItems.map(item=>(
+          <button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,background:"none",border:"none",
+            cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+            position:"relative",fontFamily:THEME.font.body,padding:"6px 0"}}>
+            <span style={{fontSize:21,filter:tab===item.id?"none":"grayscale(0.4) opacity(0.7)",transition:"filter .15s"}}>{item.icon}</span>
+            <span style={{fontSize:10,fontWeight:700,color:tab===item.id?T.teal700:T.inkSoft}}>{item.label}</span>
+            {tab===item.id&&<div style={{position:"absolute",top:-10,width:24,height:3,
+              borderRadius:R.pill,background:G.gold}}/>}
+          </button>
         ))}
       </div>
     </div>
   );
-};
-
-// 15. Export the App component
-export default App;
+}
