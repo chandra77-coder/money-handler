@@ -200,14 +200,16 @@ const SEED_UPI = [];
 
 const SEED_PROFILE = { name:"", avatar:null, occupation:"Salaried", monthlyIncome:"", language:"English", dateFormat:"DD/MM/YYYY" };
 
+const SEED_CATEGORIES = {
+  income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
+  expense: [{l:"Food",icon:"🍛"},{l:"Travel",icon:"🚌"},{l:"Bills",icon:"📄"},{l:"Shopping",icon:"🛍️"},{l:"Health",icon:"💊"},{l:"Other",icon:"📦"}],
+};
+
 const OCCUPATIONS = ["Salaried","Business","Freelance","Student","Other"];
 const LANGUAGES = ["English","Bengali"];
 const DATE_FORMATS = ["DD/MM/YYYY","MM/DD/YYYY","YYYY-MM-DD"];
 
-const TX_CATS = {
-  income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
-  expense: [{l:"Food",icon:"🍛"},{l:"Travel",icon:"🚌"},{l:"Bills",icon:"📄"},{l:"Shopping",icon:"🛍️"},{l:"Health",icon:"💊"},{l:"Other",icon:"📦"}],
-};
+// TX_CATS is now dynamically loaded from localStorage in the App component
 const INCOME_METHODS  = ["Cash","Online / UPI","Bank Transfer","Cheque"];
 const EXPENSE_METHODS = ["Cash","UPI / Online","Card","Bank Transfer"];
 const ACCOUNT_TYPES   = [{type:"Cash",icon:"💵"},{type:"Bank",icon:"🏦"},{type:"Wallet",icon:"📱"},{type:"Other",icon:"💰"}];
@@ -1166,6 +1168,7 @@ function SettingsSheet({
   pin, setPin, pinEnabled, setPinEnabled,
   upiList, setUpiList,
   notifyEnabled, setNotifyEnabled,
+  categories, setCategories,
   onOpenProfile,
   onOpenAccounts,
   profile, setProfile,
@@ -1431,6 +1434,33 @@ function SettingsSheet({
               <FBtn onClick={()=>setSection(null)} outline color={T.inkSoft} style={{flex:1,padding:"9px"}}>Cancel</FBtn>
               <FBtn onClick={()=>{setTransactions([]); setLoans([]); setAccounts([]); setOpeningBalance(0); setDeclaredAmount(0); setGoalAmount(0); setManualCheck(0); setUpiList([]); setProfile(SEED_PROFILE); setSection(null);}} bg={G.expense} style={{flex:1,padding:"9px"}}>Delete All</FBtn>
             </div>
+          </div>
+        )}
+        {/* Manage Categories */}
+        {menuRow("📂","Manage Categories","Add, edit, or delete categories","categories")}
+        {section==="categories" && (
+          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>📂 Income Categories</div>
+            {categories.income.map((cat,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+                <span style={{fontSize:18}}>{cat.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l}</div>
+                </div>
+                <button onClick={()=>{setCategories({...categories,income:categories.income.filter((_,idx)=>idx!==i)});}} style={{padding:"5px 8px",borderRadius:8,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+            ))}
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12,marginTop:14}}>💰 Expense Categories</div>
+            {categories.expense.map((cat,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+                <span style={{fontSize:18}}>{cat.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l}</div>
+                </div>
+                <button onClick={()=>{setCategories({...categories,expense:categories.expense.filter((_,idx)=>idx!==i)});}} style={{padding:"5px 8px",borderRadius:8,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+            ))}
+            <div style={{fontSize:11,color:T.inkSoft,marginTop:10}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
@@ -2000,6 +2030,7 @@ export default function App() {
   const [upiList,      setUpiList]      = useLS("fm_upi",            SEED_UPI);
   const [profile,      setProfile]      = useLS("fm_profile",        SEED_PROFILE);
   const [notifyEnabled,setNotifyEnabled]= useLS("fm_notify",         false);
+  const [categories,   setCategories]   = useLS("fm_categories",      SEED_CATEGORIES);
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -2077,6 +2108,7 @@ export default function App() {
         pin={pin} setPin={setPin} pinEnabled={pinEnabled} setPinEnabled={setPinEnabled}
         upiList={upiList} setUpiList={setUpiList}
         notifyEnabled={notifyEnabled} setNotifyEnabled={setNotifyEnabled}
+        categories={categories} setCategories={setCategories}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
         profile={profile} setProfile={setProfile}/>
