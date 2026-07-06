@@ -1151,14 +1151,23 @@ function compressImage(file, callback) {
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 400;
+      // Increase MAX size for better QR quality
+      const MAX = 800;
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const w = Math.round(img.width * scale);
       const h = Math.round(img.height * scale);
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL("image/jpeg", 0.72));
+      const ctx = canvas.getContext("2d");
+      
+      // Use better image smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      
+      // Use PNG for lossless quality, better for QR codes
+      // This ensures the QR stays sharp and readable
+      callback(canvas.toDataURL("image/png"));
     };
     img.src = e.target.result;
   };
