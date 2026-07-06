@@ -557,7 +557,7 @@ function calcAccountBalances(accounts, transactions) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, openingBalance, declaredAmount, manualCheck, notifyEnabled, onOpenSettings }) {
+function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, categories, openingBalance, declaredAmount, manualCheck, notifyEnabled, onOpenSettings }) {
   const [selectedTx, setSelectedTx] = useState(null);
   const [editTxId, setEditTxId] = useState(null);
   const [showEditSheet, setShowEditSheet] = useState(false);
@@ -579,7 +579,9 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, o
 
   const saveEdit = () => {
     if (!editForm.amount || parseFloat(editForm.amount) <= 0) return;
-    setTransactions(prev => prev.map(t => t.id === editTxId ? { ...editForm, id: editTxId, amount: parseFloat(editForm.amount), createdAt: t.createdAt } : t));
+    const catList = editForm.type === "income" ? categories.income : categories.expense;
+    const cat = catList.find(c => c.l === editForm.category);
+    setTransactions(prev => prev.map(t => t.id === editTxId ? { ...editForm, id: editTxId, icon: cat?.icon || t.icon, amount: parseFloat(editForm.amount), createdAt: t.createdAt } : t));
     setShowEditSheet(false);
     setEditTxId(null);
   };
@@ -789,7 +791,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, o
         {editForm.type!=="transfer" ? (
           <>
             <Label>CATEGORY</Label>
-            <ChipRow items={editForm.type==="income"?SEED_CATEGORIES.income:SEED_CATEGORIES.expense}
+            <ChipRow items={(editForm.type==="income"?categories.income:categories.expense).map(c=>c.l)}
               selected={editForm.category} onSelect={v=>setEditForm({...editForm,category:v})}/>
             <Label>ACCOUNT</Label>
             <ChipRow items={accounts.map(a=>a.name)} selected={editForm.account} onSelect={v=>setEditForm({...editForm,account:v})}/>
@@ -1836,7 +1838,7 @@ function SettingsSheet({
             </div>
             <div style={{display:"flex",gap:8}}>
               <FBtn onClick={()=>setSection(null)} outline color={T.inkSoft} style={{flex:1,padding:"9px"}}>Cancel</FBtn>
-              <FBtn onClick={()=>{setTransactions([]); setLoans([]); setAccounts([]); setOpeningBalance(0); setDeclaredAmount(0); setGoalAmount(0); setManualCheck(0); setUpiList([]); setProfile(SEED_PROFILE); setSection(null);}} bg={G.expense} style={{flex:1,padding:"9px"}}>Delete All</FBtn>
+              <FBtn onClick={()=>{setTransactions([]); setLoans([]); setAccounts([]); setOpeningBalance(0); setDeclaredAmount(0); setGoalAmount(0); setManualCheck(0); setUpiList([]); setProfile(SEED_PROFILE); setTrash({ transactions: [], loans: [], categories: { income: [], expense: [] } }); setCategories(SEED_CATEGORIES); setNotifyEnabled(false); setPin(""); setPinEnabled(false); setSection(null);}} bg={G.expense} style={{flex:1,padding:"9px"}}>Delete All</FBtn>
             </div>
           </div>
         )}
@@ -1856,7 +1858,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 1.3.0", null)}
+        {menuRow("ℹ️","About","Version 1.4.2", null)}
 
       </div>
 
@@ -2522,7 +2524,7 @@ export default function App() {
       minHeight:"100vh",maxWidth:420,margin:"0 auto",paddingBottom:72,overflowX:"hidden"}}>
 
       {tab==="dashboard"    && <Dashboard
-        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash} loans={loans} accounts={accounts}
+        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash} loans={loans} accounts={accounts} categories={categories}
         openingBalance={openingBalance} declaredAmount={declaredAmount}
         manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
 
