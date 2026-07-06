@@ -357,7 +357,7 @@ function ToggleSwitch({ on, onChange }) {
   );
 }
 
-function TransactionDetailSheet({ tx, onClose, onDelete }) {
+function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
   if (!tx) return null;
   const color = tx.type==="income" ? T.income : tx.type==="transfer" ? "#7B5EA7" : T.expense;
   const bg    = tx.type==="income" ? T.incomeSoft : tx.type==="transfer" ? T.transferSoft : T.expenseSoft;
@@ -397,11 +397,18 @@ function TransactionDetailSheet({ tx, onClose, onDelete }) {
         ))}
       </div>
 
-      {onDelete && (
-        <FBtn onClick={()=>{onDelete(tx.id);onClose();}} bg={G.expense} style={{width:"100%",padding:"14px",marginTop:16}}>
-          🗑 Delete Transaction
-        </FBtn>
-      )}
+      <div style={{display:"flex",gap:10,marginTop:16}}>
+        {onEdit && (
+          <FBtn onClick={()=>{onEdit(tx); onClose();}} style={{flex:1,padding:"14px"}}>
+            ✏️ Edit
+          </FBtn>
+        )}
+        {onDelete && (
+          <FBtn onClick={()=>{onDelete(tx.id);onClose();}} bg={G.expense} style={{flex:onEdit?1:2,padding:"14px"}}>
+            🗑 Delete
+          </FBtn>
+        )}
+      </div>
     </Sheet>
   );
 }
@@ -550,9 +557,33 @@ function calcAccountBalances(accounts, transactions) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({ transactions, setTransactions, loans, accounts, openingBalance, declaredAmount, manualCheck, notifyEnabled, onOpenSettings }) {
+function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, openingBalance, declaredAmount, manualCheck, notifyEnabled, onOpenSettings }) {
   const [selectedTx, setSelectedTx] = useState(null);
-  const deleteTx = (id) => setTransactions(prev=>prev.filter(t=>t.id!==id));
+  const [editTxId, setEditTxId] = useState(null);
+  const [showEditSheet, setShowEditSheet] = useState(false);
+  const [editForm, setEditForm] = useState(EMPTY_TX);
+
+  const deleteTx = (id) => {
+    const tx = transactions.find(t => t.id === id);
+    if (tx) {
+      setTrash(prev => ({ ...prev, transactions: [...prev.transactions, tx] }));
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    }
+  };
+
+  const openEdit = (tx) => {
+    setEditTxId(tx.id);
+    setEditForm({ ...tx, amount: String(tx.amount) });
+    setShowEditSheet(true);
+  };
+
+  const saveEdit = () => {
+    if (!editForm.amount || parseFloat(editForm.amount) <= 0) return;
+    setTransactions(prev => prev.map(t => t.id === editTxId ? { ...editForm, id: editTxId, amount: parseFloat(editForm.amount), createdAt: t.createdAt } : t));
+    setShowEditSheet(false);
+    setEditTxId(null);
+  };
+
 
   // Totals — transfers excluded from income/expense counters.
   // Only count transactions whose account still exists, so these totals
@@ -741,8 +772,47 @@ function Dashboard({ transactions, setTransactions, loans, accounts, openingBala
         </div>
       </div>
 
-      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx}/>
-    </div>
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit}/>
+    
+      {/* Edit Sheet for Dashboard */}
+      <Sheet open={showEditSheet} onClose={()=>{setShowEditSheet(false); setEditTxId(null);}}>
+        <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>Edit Transaction</div>
+        <TypeToggle
+          options={[["expense","↓ Expense"],["income","↑ Income"],["transfer","⇄ Transfer"]]}
+          value={editForm.type} onChange={v=>setEditForm({...editForm,type:v})}
+          colors={{expense:G.expense,income:G.income,transfer:G.transfer}}/>
+
+        <Label>AMOUNT</Label>
+        <FInput value={editForm.amount} onChange={e=>setEditForm({...editForm,amount:e.target.value})}
+          placeholder="₹ 0" type="number" style={{fontSize:19,fontWeight:700,marginBottom:12,fontFamily:THEME.font.money}}/>
+
+        {editForm.type!=="transfer" ? (
+          <>
+            <Label>CATEGORY</Label>
+            <ChipRow items={editForm.type==="income"?SEED_CATEGORIES.income:SEED_CATEGORIES.expense}
+              selected={editForm.category} onSelect={v=>setEditForm({...editForm,category:v})}/>
+            <Label>ACCOUNT</Label>
+            <ChipRow items={accounts.map(a=>a.name)} selected={editForm.account} onSelect={v=>setEditForm({...editForm,account:v})}/>
+            <Label>HOW</Label>
+            <ChipRow items={editForm.type==="income"?INCOME_METHODS:EXPENSE_METHODS} selected={editForm.method} onSelect={v=>setEditForm({...editForm,method:v})}/>
+          </>
+        ) : (
+          <>
+            <Label>FROM ACCOUNT</Label>
+            <ChipRow items={accounts.map(a=>a.name)} selected={editForm.account} onSelect={v=>setEditForm({...editForm,account:v})}/>
+            <Label>TO ACCOUNT</Label>
+            <ChipRow items={accounts.map(a=>a.name)} selected={editForm.toAccount} onSelect={v=>setEditForm({...editForm,toAccount:v})}/>
+          </>
+        )}
+
+        <Label>NOTE (OPTIONAL)</Label>
+        <FInput value={editForm.note} onChange={e=>setEditForm({...editForm,note:e.target.value})}
+          placeholder="Add a note…" style={{marginBottom:10}}/>
+        <Label>DATE</Label>
+        <FInput value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})}
+          type="date" style={{marginBottom:16}}/>
+        <FBtn onClick={saveEdit} style={{width:"100%",padding:"15px"}}>Update Transaction</FBtn>
+      </Sheet></div>
   );
 }
 
@@ -941,7 +1011,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
         <FBtn onClick={save} style={{width:"100%",padding:"15px"}}>Save Transaction</FBtn>
       </Sheet>
 
-      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx}/>
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit}/>
     </div>
   );
 }
@@ -2435,7 +2505,7 @@ export default function App() {
       minHeight:"100vh",maxWidth:420,margin:"0 auto",paddingBottom:72,overflowX:"hidden"}}>
 
       {tab==="dashboard"    && <Dashboard
-        transactions={transactions} setTransactions={setTransactions} loans={loans} accounts={accounts}
+        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash} loans={loans} accounts={accounts}
         openingBalance={openingBalance} declaredAmount={declaredAmount}
         manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
 
