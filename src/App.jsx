@@ -1319,6 +1319,11 @@ function CategoryManager({ categories, setCategories, setTrash, T, R, SH }) {
 
   const addCategory = (type) => {
     if (!addForm.l.trim() || !addForm.icon.trim()) return;
+    // Prevent duplicates
+    if (categories[type].some(c => c.l.toLowerCase() === addForm.l.trim().toLowerCase())) {
+      alert("This category already exists!");
+      return;
+    }
     setCategories({...categories, [type]: [...categories[type], addForm]});
     setAddForm({l:"", icon:""});
   };
@@ -1354,7 +1359,19 @@ function CategoryManager({ categories, setCategories, setTrash, T, R, SH }) {
     <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
       {renderCategoryList('income', 'Income Categories', '📂')}
       {renderCategoryList('expense', 'Expense Categories', '💰')}
-      <div style={{fontSize:11,color:T.inkSoft,marginTop:10}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
+      
+      <div style={{background:T.card,borderRadius:12,padding:"14px",marginTop:10,boxShadow:SH.soft}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>Add New Category</div>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <input type="text" value={addForm.icon} onChange={e => setAddForm({...addForm, icon: e.target.value})} placeholder="Icon (e.g. 🍔)" style={{width:45,padding:"8px",borderRadius:8,border:`1px solid ${T.line}`,textAlign:"center",fontSize:16}}/>
+          <input type="text" value={addForm.l} onChange={e => setAddForm({...addForm, l: e.target.value})} placeholder="Category Name" style={{flex:1,padding:"8px 12px",borderRadius:8,border:`1px solid ${T.line}`,fontSize:13}}/>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={() => addCategory('income')} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add to Income</button>
+          <button onClick={() => addCategory('expense')} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add to Expense</button>
+        </div>
+      </div>
+      <div style={{fontSize:11,color:T.inkSoft,marginTop:15}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
     </div>
   );
 }
@@ -1780,6 +1797,30 @@ function SettingsSheet({
 
         {/* ── PROFILE (full screen) ── */}
         {menuRow("👤","Profile","Occupation, income, language", null, ()=>{onClose();onOpenProfile();})}
+
+        {/* ── THEME SELECTION ── */}
+        {menuRow("🎨","Theme",`${(profile.theme||'system').charAt(0).toUpperCase() + (profile.theme||'system').slice(1)} mode`, "theme")}
+        {section==="theme" && (
+          <div onClick={e=>e.stopPropagation()} style={card}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>Choose Theme</div>
+            <div style={{display:"flex",gap:8}}>
+              {['light', 'dark', 'system'].map(t => (
+                <button key={t} onClick={() => setProfile({...profile, theme: t})} style={{
+                  flex:1, padding:"12px 8px", borderRadius:R.md, border:"none",
+                  background: (profile.theme||'system') === t ? T.teal500 : T.card,
+                  color: (profile.theme||'system') === t ? "white" : T.ink,
+                  fontSize:12, fontWeight:700, cursor:"pointer", boxShadow:SH.soft,
+                  textTransform: "capitalize"
+                }}>
+                  {t === 'light' ? '☀️ Bright' : t === 'dark' ? '🌙 Dark' : '⚙️ System'}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:11,color:T.inkSoft,marginTop:12,lineHeight:1.4}}>
+              {profile.theme === 'system' ? "Follows your device's light/dark mode settings automatically." : `App will stay in ${profile.theme} mode regardless of device settings.`}
+            </div>
+          </div>
+        )}
 
         {/* ── NOTIFICATIONS ── */}
         <div style={{background:T.card,borderRadius:R.lg,padding:"10px 12px",marginBottom:10,
