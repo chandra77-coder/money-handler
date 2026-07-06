@@ -1776,6 +1776,8 @@ function Goal({ transactions, accounts, openingBalance, goalAmount }) {
 function Pay({ upiList }) {
   const [expandedId, setExpandedId] = useState(null);
   const [copiedId, setCopiedId]     = useState(null);
+  const [fullscreenQrId, setFullscreenQrId] = useState(null);
+  const fullscreenQr = upiList.find(u => u.id === fullscreenQrId);
 
   const copyUpi = (id, upiId) => {
     if (navigator.clipboard) {
@@ -1793,6 +1795,20 @@ function Pay({ upiList }) {
     setCopiedId(id);
     setTimeout(()=>setCopiedId(c=>c===id?null:c), 1500);
   };
+
+  // Fullscreen QR view
+  if (fullscreenQr) {
+    return (
+      <div style={{position:"fixed",inset:0,background:T.bg,zIndex:1000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:20}}>{fullscreenQr.label}</div>
+          <img src={fullscreenQr.qr} alt={`${fullscreenQr.label} QR`} style={{width:"90vw",maxWidth:400,height:"auto",borderRadius:R.lg,border:`2px solid ${T.line}`,background:T.card}}/>
+          <div style={{fontSize:12,color:T.inkSoft,marginTop:20,marginBottom:30}}>{fullscreenQr.upiId}</div>
+          <button onClick={()=>setFullscreenQrId(null)} style={{padding:"14px 32px",borderRadius:R.md,border:"none",background:G.primary,color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>Leave</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1830,22 +1846,31 @@ function Pay({ upiList }) {
               </div>
 
               {u.qr && (
-                <div onClick={()=>setExpandedId(isOpen?null:u.id)} style={{marginTop:12,cursor:"pointer",textAlign:"center"}}>
-                  <div style={{
-                    overflow:"hidden",
-                    maxHeight:isOpen?420:72,
-                    transition:"max-height .3s ease",
-                    display:"flex",justifyContent:"center"
-                  }}>
-                    <img src={u.qr} alt={`${u.label} QR`} style={{
-                      width:isOpen?320:72, height:isOpen?320:72,
-                      borderRadius:R.md, objectFit:"contain",
-                      border:`1.5px solid ${T.line}`, display:"block",
-                      background:T.bgSoft
-                    }}/>
+                <>
+                  <div onClick={()=>setExpandedId(isOpen?null:u.id)} style={{marginTop:12,cursor:"pointer",textAlign:"center"}}>
+                    <div style={{
+                      overflow:"hidden",
+                      maxHeight:isOpen?420:72,
+                      transition:"max-height .3s ease",
+                      display:"flex",justifyContent:"center"
+                    }}>
+                      <img src={u.qr} alt={`${u.label} QR`} style={{
+                        width:isOpen?320:72, height:isOpen?320:72,
+                        borderRadius:R.md, objectFit:"contain",
+                        border:`1.5px solid ${T.line}`, display:"block",
+                        background:T.bgSoft
+                      }}/>
+                    </div>
+                    <div style={{fontSize:11,color:T.inkSoft,marginTop:6}}>{isOpen?"▲ Tap to collapse":"▼ Tap to expand QR"}</div>
                   </div>
-                  <div style={{fontSize:11,color:T.inkSoft,marginTop:6}}>{isOpen?"▲ Tap to collapse":"▼ Tap to expand QR"}</div>
-                </div>
+                  {isOpen && (
+                    <button onClick={()=>setFullscreenQrId(u.id)} style={{
+                      width:"100%",marginTop:10,padding:"10px",borderRadius:R.md,
+                      border:"none",background:G.primary,color:"white",
+                      fontSize:13,fontWeight:700,cursor:"pointer"
+                    }}>📱 Full Screen</button>
+                  )}
+                </>
               )}
             </div>
           );
