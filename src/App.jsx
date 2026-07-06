@@ -749,13 +749,19 @@ function Dashboard({ transactions, setTransactions, loans, accounts, openingBala
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
 const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:""};
 
-function Transactions({ transactions, setTransactions, accounts, categories }) {
+function Transactions({ transactions, setTransactions, setTrash, accounts, categories }) {
   const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [form, setForm]           = useState(EMPTY_TX);
   const [selectedTx, setSelectedTx] = useState(null);
 
-  const deleteTx = (id) => setTransactions(prev=>prev.filter(t=>t.id!==id));
+  const deleteTx = (id) => {
+    const tx = transactions.find(t => t.id === id);
+    if (tx) {
+      setTrash(prev => ({ ...prev, transactions: [...prev.transactions, tx] }));
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    }
+  };
 
   const handleSearch = (e) => {
     const v = e.target.value;
@@ -943,7 +949,7 @@ function Transactions({ transactions, setTransactions, accounts, categories }) {
 // ─── LOANS ────────────────────────────────────────────────────────────────────
 const EMPTY_LOAN = {type:"took",name:"",amount:"",reason:"",date:todayStr(),status:"pending"};
 
-function Loans({ loans, setLoans }) {
+function Loans({ loans, setLoans, setTrash }) {
   const [search, setSearch]       = useState("");
   const [filter, setFilter]       = useState("all");
   const [showSheet, setShowSheet] = useState(false);
@@ -984,7 +990,14 @@ function Loans({ loans, setLoans }) {
 
   const toggleStatus = (id) =>
     setLoans(prev=>prev.map(l=>l.id===id?{...l,status:l.status==="pending"?"returned":"pending"}:l));
-  const remove = (id) => { setLoans(prev=>prev.filter(l=>l.id!==id)); setDelId(null); };
+  const remove = (id) => {
+    const loan = loans.find(l => l.id === id);
+    if (loan) {
+      setTrash(prev => ({ ...prev, loans: [...prev.loans, loan] }));
+      setLoans(prev => prev.filter(l => l.id !== id));
+    }
+    setDelId(null);
+  };
 
   return (
     <div>
@@ -1175,7 +1188,7 @@ function compressImage(file, callback) {
 }
 
 // ─── CATEGORY MANAGER COMPONENT ───────────────────────────────────────────────
-function CategoryManager({ categories, setCategories, T, R, SH }) {
+function CategoryManager({ categories, setCategories, setTrash, T, R, SH }) {
   const [editingType, setEditingType] = useState(null); // 'income' or 'expense'
   const [editingIdx, setEditingIdx] = useState(null);
   const [editForm, setEditForm] = useState({l:"", icon:""});
@@ -1204,6 +1217,14 @@ function CategoryManager({ categories, setCategories, T, R, SH }) {
   };
 
   const deleteCategory = (type, idx) => {
+    const cat = categories[type][idx];
+    setTrash(prev => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        [type]: [...prev.categories[type], cat]
+      }
+    }));
     setCategories({...categories, [type]: categories[type].filter((_, i) => i !== idx)});
   };
 
@@ -1245,6 +1266,127 @@ function CategoryManager({ categories, setCategories, T, R, SH }) {
       {renderCategoryList('income', 'Income Categories', '📂')}
       {renderCategoryList('expense', 'Expense Categories', '💰')}
       <div style={{fontSize:11,color:T.inkSoft,marginTop:10}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
+    </div>
+  );
+}
+
+// ─── TRASH MANAGER COMPONENT ──────────────────────────────────────────────────
+function TrashManager({ trash, setTrash, setTransactions, setLoans, setCategories, T, R, SH }) {
+  const [activeTab, setActiveTab] = useState("transactions");
+
+  const restoreTransaction = (tx) => {
+    setTransactions(prev => [...prev, tx]);
+    setTrash(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== tx.id) }));
+  };
+
+  const deleteTransactionPermanently = (id) => {
+    setTrash(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+  };
+
+  const restoreLoan = (loan) => {
+    setLoans(prev => [...prev, loan]);
+    setTrash(prev => ({ ...prev, loans: prev.loans.filter(l => l.id !== loan.id) }));
+  };
+
+  const deleteLoanPermanently = (id) => {
+    setTrash(prev => ({ ...prev, loans: prev.loans.filter(l => l.id !== id) }));
+  };
+
+  const restoreCategory = (type, cat) => {
+    setCategories(prev => ({ ...prev, [type]: [...prev[type], cat] }));
+    setTrash(prev => ({
+      ...prev,
+      categories: { ...prev.categories, [type]: prev.categories[type].filter(c => c.l !== cat.l) }
+    }));
+  };
+
+  const deleteCategoryPermanently = (type, label) => {
+    setTrash(prev => ({
+      ...prev,
+      categories: { ...prev.categories, [type]: prev.categories[type].filter(c => c.l !== label) }
+    }));
+  };
+
+  const emptyTrash = () => {
+    setTrash({ transactions: [], loans: [], categories: { income: [], expense: [] } });
+  };
+
+  const hasItems = trash.transactions.length > 0 || trash.loans.length > 0 || trash.categories.income.length > 0 || trash.categories.expense.length > 0;
+
+  return (
+    <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:15}}>
+        <div style={{fontSize:14,fontWeight:700,color:T.ink}}>Recently Deleted</div>
+        {hasItems && <button onClick={emptyTrash} style={{fontSize:11,color:T.expense,background:"none",border:"none",fontWeight:700,cursor:"pointer"}}>Empty Trash</button>}
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:15,overflowX:"auto",paddingBottom:5}}>
+        {["transactions", "loans", "categories"].map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            padding:"6px 12px",borderRadius:R.sm,border:"none",fontSize:11,fontWeight:700,
+            background:activeTab===tab?T.teal500:T.card,color:activeTab===tab?"white":T.inkSoft,
+            cursor:"pointer",textTransform:"capitalize"
+          }}>{tab}</button>
+        ))}
+      </div>
+
+      <div style={{maxHeight:300,overflowY:"auto"}}>
+        {activeTab === "transactions" && (
+          trash.transactions.length === 0 ? <div style={{fontSize:12,color:T.inkSoft,textAlign:"center",padding:"20px"}}>No deleted transactions</div> :
+          trash.transactions.map(tx => (
+            <div key={tx.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+              <span style={{fontSize:18}}>{tx.icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{tx.category}</div>
+                <div style={{fontSize:10,color:T.inkSoft}}>{tx.date} · ₹{tx.amount}</div>
+              </div>
+              <button onClick={() => restoreTransaction(tx)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+              <button onClick={() => deleteTransactionPermanently(tx.id)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+            </div>
+          ))
+        )}
+
+        {activeTab === "loans" && (
+          trash.loans.length === 0 ? <div style={{fontSize:12,color:T.inkSoft,textAlign:"center",padding:"20px"}}>No deleted loans</div> :
+          trash.loans.map(l => (
+            <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:avatarColor(l.name),display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:12,fontWeight:700}}>{l.name[0]}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{l.name}</div>
+                <div style={{fontSize:10,color:T.inkSoft}}>{l.type} · ₹{l.amount}</div>
+              </div>
+              <button onClick={() => restoreLoan(l)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+              <button onClick={() => deleteLoanPermanently(l.id)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+            </div>
+          ))
+        )}
+
+        {activeTab === "categories" && (
+          (trash.categories.income.length === 0 && trash.categories.expense.length === 0) ? <div style={{fontSize:12,color:T.inkSoft,textAlign:"center",padding:"20px"}}>No deleted categories</div> :
+          <>
+            {trash.categories.income.map((cat, i) => (
+              <div key={`in-${i}`} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+                <span style={{fontSize:18}}>{cat.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l} (Income)</div>
+                </div>
+                <button onClick={() => restoreCategory('income', cat)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+                <button onClick={() => deleteCategoryPermanently('income', cat.l)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+              </div>
+            ))}
+            {trash.categories.expense.map((cat, i) => (
+              <div key={`ex-${i}`} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+                <span style={{fontSize:18}}>{cat.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l} (Expense)</div>
+                </div>
+                <button onClick={() => restoreCategory('expense', cat)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+                <button onClick={() => deleteCategoryPermanently('expense', cat.l)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1343,6 +1485,7 @@ function SettingsSheet({
   upiList, setUpiList,
   notifyEnabled, setNotifyEnabled,
   categories, setCategories,
+  trash, setTrash,
   onOpenProfile,
   onOpenAccounts,
   profile, setProfile,
@@ -1614,7 +1757,15 @@ function SettingsSheet({
         {menuRow("📂","Manage Categories","Add, edit, or delete categories","categories")}
         {section==="categories" && (
           <div onClick={e=>e.stopPropagation()}>
-            <CategoryManager categories={categories} setCategories={setCategories} T={T} R={R} SH={SH}/>
+            <CategoryManager categories={categories} setCategories={setCategories} setTrash={setTrash} T={T} R={R} SH={SH}/>
+          </div>
+        )}
+
+        {/* ── TRASH / RECENTLY DELETED ── */}
+        {menuRow("🗑","Recently Deleted","Restore deleted items","trash")}
+        {section==="trash" && (
+          <div onClick={e=>e.stopPropagation()}>
+            <TrashManager trash={trash} setTrash={setTrash} setTransactions={setTransactions} setLoans={setLoans} setCategories={setCategories} T={T} R={R} SH={SH}/>
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
@@ -2216,6 +2367,7 @@ export default function App() {
   const [profile,      setProfile]      = useLS("fm_profile",        SEED_PROFILE);
   const [notifyEnabled,setNotifyEnabled]= useLS("fm_notify",         false);
   const [categories,   setCategories]   = useLS("fm_categories",      SEED_CATEGORIES);
+  const [trash,        setTrash]        = useLS("fm_trash",           { transactions: [], loans: [], categories: { income: [], expense: [] } });
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -2288,9 +2440,9 @@ export default function App() {
         manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
 
       {tab==="transactions" && <Transactions
-        transactions={transactions} setTransactions={setTransactions} accounts={accounts} categories={categories}/>}
+        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash} accounts={accounts} categories={categories}/>}
 
-      {tab==="loans"        && <Loans loans={loans} setLoans={setLoans}/>}
+      {tab==="loans"        && <Loans loans={loans} setLoans={setLoans} setTrash={setTrash}/>}
 
       {tab==="goal"         && <Goal
         transactions={transactions} accounts={accounts}
@@ -2313,6 +2465,7 @@ export default function App() {
         upiList={upiList} setUpiList={setUpiList}
         notifyEnabled={notifyEnabled} setNotifyEnabled={setNotifyEnabled}
         categories={categories} setCategories={setCategories}
+        trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
         profile={profile} setProfile={setProfile}/>
