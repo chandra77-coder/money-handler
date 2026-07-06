@@ -221,7 +221,7 @@ const THEME = {
     money:"'Inter', system-ui, sans-serif",
   },
 };
-const T = THEME.colors, G = THEME.gradient, SH = THEME.shadow, R = THEME.radius;
+let T = THEME.colors, G = THEME.gradient, SH = THEME.shadow, R = THEME.radius;
 
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -822,6 +822,7 @@ const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:
 function Transactions({ transactions, setTransactions, setTrash, accounts, categories }) {
   const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
+  const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(EMPTY_TX);
   const [selectedTx, setSelectedTx] = useState(null);
 
@@ -831,6 +832,40 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       setTrash(prev => ({ ...prev, transactions: [...prev.transactions, tx] }));
       setTransactions(prev => prev.filter(t => t.id !== id));
     }
+  };
+
+  const openEdit = (tx) => {
+    setEditId(tx.id);
+    setForm({ ...tx, amount: String(tx.amount) });
+    setShowSheet(true);
+  };
+
+  const save = () => {
+    if (!form.amount || parseFloat(form.amount)<=0) return;
+    const now = Date.now();
+    let entry;
+    if (form.type==="transfer") {
+      if (!form.account || !form.toAccount || form.account===form.toAccount) return;
+      entry = {
+        type:"transfer",category:"Transfer",icon:"⇄",
+        amount:parseFloat(form.amount),note:form.note,date:form.date,
+        account:form.account,toAccount:form.toAccount,method:""
+      };
+    } else {
+      if (!form.category || !form.account) return;
+      const cat = [...(categories?.income||[]),...(categories?.expense||[])].find(c=>c.l===form.category);
+      entry = {...form, icon:cat?.icon||"💰", amount:parseFloat(form.amount), toAccount:""};
+    }
+
+    if (editId) {
+      setTransactions(prev => prev.map(t => t.id === editId ? { ...entry, id: editId, createdAt: t.createdAt } : t));
+    } else {
+      setTransactions(prev => [{ ...entry, id: now, createdAt: now }, ...prev]);
+    }
+
+    setShowSheet(false);
+    setEditId(null);
+    setForm(EMPTY_TX);
   };
 
   const handleSearch = (e) => {
@@ -856,25 +891,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
     return acc;
   },{});
 
-  const save = () => {
-    if (!form.amount || parseFloat(form.amount)<=0) return;
-    const now = Date.now(); // exact moment this transaction was logged
-    if (form.type==="transfer") {
-      if (!form.account || !form.toAccount || form.account===form.toAccount) return;
-      setTransactions(prev=>[{
-        id:now,type:"transfer",category:"Transfer",icon:"⇄",
-        amount:parseFloat(form.amount),note:form.note,date:form.date,createdAt:now,
-        account:form.account,toAccount:form.toAccount,method:""
-      },...prev]);
-    } else {
-      if (!form.category || !form.account) return;
-      const cat = [...(categories?.income||[]),...(categories?.expense||[])].find(c=>c.l===form.category);
-      setTransactions(prev=>[{...form,id:now,icon:cat?.icon||"💰",createdAt:now,
-        amount:parseFloat(form.amount),toAccount:""},...prev]);
-    }
-    setShowSheet(false);
-    setForm(EMPTY_TX);
-  };
+
 
   const accountNames = accounts.map(a=>a.name);
   const methods = form.type==="income" ? INCOME_METHODS : EXPENSE_METHODS;
@@ -959,7 +976,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       }}>+</button>
 
       <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
-        <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>Add Transaction</div>
+        <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Transaction":"Add Transaction"}</div>
         <TypeToggle
           options={[["expense","↓ Expense"],["income","↑ Income"],["transfer","⇄ Transfer"]]}
           value={form.type} onChange={v=>setForm({...EMPTY_TX,type:v})}
@@ -2446,8 +2463,8 @@ export default function App() {
   // Determine active theme based on profile setting
   const activeTheme = profile.theme === 'system' ? getSystemTheme() : (profile.theme || 'dark');
   const currentTheme = THEMES[activeTheme] || THEMES.dark;
-  const T_ACTIVE = currentTheme.colors;
-  const G_ACTIVE = currentTheme.gradient;
+  T = currentTheme.colors;
+  G = currentTheme.gradient;
 
   useEffect(()=>{ if (!pinEnabled) setUnlocked(true); },[pinEnabled]);
 
