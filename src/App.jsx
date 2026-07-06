@@ -81,6 +81,93 @@ import React, { useState, useEffect } from "react";
 
 // ─── THEME ──────────────────────────────────────────────────────────────────
 // Central design tokens. Only visual values — no business logic lives here.
+
+// Theme definitions for Light, Dark, and System modes
+const THEMES = {
+  light: {
+    colors: {
+      bg:           "#F5F7FA",
+      bgSoft:       "#F2F4F8",
+      teal900:      "#0F2540",
+      teal800:      "#1a3a5c",
+      teal700:      "#1E3A5F",
+      teal600:      "#234A75",
+      teal500:      "#2D6A9F",
+      mint:         "#1DB954",
+      mintSoft:     "#E5F4FF",
+      gold:         "#F5B942",
+      goldSoft:     "#FFF3DD",
+      income:       "#1DB954",
+      incomeSoft:   "#E8FBF0",
+      expense:      "#E53E3E",
+      expenseSoft:  "#FFF0F0",
+      transfer:     "#7B5EA7",
+      transferSoft: "#F3EEFF",
+      ink:          "#1A1A2E",
+      inkSoft:      "#8A93A0",
+      line:         "#E8EDF3",
+      card:         "#FFFFFF",
+      glass:        "rgba(45,106,159,0.08)",
+      glassBorder:  "rgba(45,106,159,0.12)",
+      glassStrong:  "rgba(45,106,159,0.1)",
+    },
+    gradient: {
+      header:  "linear-gradient(135deg,#2D6A9F 0%,#1a3a5c 100%)",
+      primary: "linear-gradient(135deg,#2D6A9F 0%,#1a3a5c 100%)",
+      gold:    "linear-gradient(135deg,#F5B942 0%,#E0A53A 100%)",
+      income:  "linear-gradient(135deg,#1DB954,#15A047)",
+      expense: "linear-gradient(135deg,#E53E3E,#C73333)",
+      transfer:"linear-gradient(135deg,#7B5EA7,#6B4F95)",
+      nav:     "linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.99))",
+    },
+  },
+  dark: {
+    colors: {
+      bg:           "#1a3a5c",
+      bgSoft:       "#0F2540",
+      teal900:      "#13283F",
+      teal800:      "#1a3a5c",
+      teal700:      "#1E3A5F",
+      teal600:      "#234A75",
+      teal500:      "#2D6A9F",
+      mint:         "#7EFFC5",
+      mintSoft:     "#1a4d3e",
+      gold:         "#F5B942",
+      goldSoft:     "#3d2f1a",
+      income:       "#1DB954",
+      incomeSoft:   "#0d3d1f",
+      expense:      "#E53E3E",
+      expenseSoft:  "#4d1a1a",
+      transfer:     "#7B5EA7",
+      transferSoft: "#2d1f4d",
+      ink:          "#E8EDF3",
+      inkSoft:      "#8A93A0",
+      line:         "#2d4a6f",
+      card:         "#0F2540",
+      glass:        "rgba(255,255,255,0.13)",
+      glassBorder:  "rgba(255,255,255,0.18)",
+      glassStrong:  "rgba(255,255,255,0.15)",
+    },
+    gradient: {
+      header:  "linear-gradient(135deg,#1a3a5c 0%,#2d6a9f 100%)",
+      primary: "linear-gradient(135deg,#2D6A9F 0%,#1a3a5c 100%)",
+      gold:    "linear-gradient(135deg,#F5B942 0%,#E0A53A 100%)",
+      income:  "linear-gradient(135deg,#1DB954,#15A047)",
+      expense: "linear-gradient(135deg,#E53E3E,#C73333)",
+      transfer:"linear-gradient(135deg,#7B5EA7,#6B4F95)",
+      nav:     "linear-gradient(180deg,rgba(15,37,64,0.92),rgba(15,37,64,0.99))",
+    },
+  },
+};
+
+// Get system theme preference
+const getSystemTheme = () => {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+};
+
 const THEME = {
   colors: {
     bg:           "#1a3a5c",
@@ -125,6 +212,9 @@ const THEME = {
     nav:     "0 -4px 20px rgba(26,58,92,0.10)",
     glow:    "0 0 0 1px rgba(255,255,255,0.18) inset",
   },
+  // Placeholder for theme colors - will be replaced dynamically
+  colors: THEMES.dark.colors,
+  gradient: THEMES.dark.gradient,
   radius: { sm:10, md:14, lg:18, xl:22, xxl:28, pill:999 },
   font: {
     body: "'Inter', system-ui, sans-serif",
@@ -198,7 +288,7 @@ const SEED_LOANS = [];
 
 const SEED_UPI = [];
 
-const SEED_PROFILE = { name:"", avatar:null, occupation:"Salaried", monthlyIncome:"", language:"English", dateFormat:"DD/MM/YYYY" };
+const SEED_PROFILE = { name:"", avatar:null, occupation:"Salaried", monthlyIncome:"", language:"English", dateFormat:"DD/MM/YYYY", theme:"system" };
 
 const SEED_CATEGORIES = {
   income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
@@ -1075,6 +1165,81 @@ function compressImage(file, callback) {
   reader.readAsDataURL(file);
 }
 
+// ─── CATEGORY MANAGER COMPONENT ───────────────────────────────────────────────
+function CategoryManager({ categories, setCategories, T, R, SH }) {
+  const [editingType, setEditingType] = useState(null); // 'income' or 'expense'
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editForm, setEditForm] = useState({l:"", icon:""});
+  const [addForm, setAddForm] = useState({l:"", icon:""});
+
+  const startEdit = (type, idx) => {
+    setEditingType(type);
+    setEditingIdx(idx);
+    setEditForm({...categories[type][idx]});
+  };
+
+  const saveEdit = () => {
+    if (!editForm.l.trim() || !editForm.icon.trim()) return;
+    const updated = [...categories[editingType]];
+    updated[editingIdx] = editForm;
+    setCategories({...categories, [editingType]: updated});
+    setEditingType(null);
+    setEditingIdx(null);
+    setEditForm({l:"", icon:""});
+  };
+
+  const cancelEdit = () => {
+    setEditingType(null);
+    setEditingIdx(null);
+    setEditForm({l:"", icon:""});
+  };
+
+  const deleteCategory = (type, idx) => {
+    setCategories({...categories, [type]: categories[type].filter((_, i) => i !== idx)});
+  };
+
+  const addCategory = (type) => {
+    if (!addForm.l.trim() || !addForm.icon.trim()) return;
+    setCategories({...categories, [type]: [...categories[type], addForm]});
+    setAddForm({l:"", icon:""});
+  };
+
+  const renderCategoryList = (type, title, icon) => (
+    <div style={{marginBottom: 20}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>{icon} {title}</div>
+      {categories[type].map((cat, i) => (
+        <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+          {editingType === type && editingIdx === i ? (
+            <>
+              <input type="text" value={editForm.icon} onChange={e => setEditForm({...editForm, icon: e.target.value})} placeholder="Icon" style={{width:30,padding:"4px",borderRadius:6,border:`1px solid ${T.line}`,textAlign:"center"}}/>
+              <input type="text" value={editForm.l} onChange={e => setEditForm({...editForm, l: e.target.value})} placeholder="Name" style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.line}`,fontSize:13}}/>
+              <button onClick={saveEdit} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.income,color:"white",fontSize:11,fontWeight:600,cursor:"pointer"}}>✓</button>
+              <button onClick={cancelEdit} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${T.line}`,background:T.card,color:T.ink,fontSize:11,fontWeight:600,cursor:"pointer"}}>✕</button>
+            </>
+          ) : (
+            <>
+              <span style={{fontSize:18}}>{cat.icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l}</div>
+              </div>
+              <button onClick={() => startEdit(type, i)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${T.line}`,background:T.bgSoft,color:T.teal500,fontSize:11,fontWeight:600,cursor:"pointer"}}>✏️</button>
+              <button onClick={() => deleteCategory(type, i)} style={{padding:"5px 8px",borderRadius:6,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
+      {renderCategoryList('income', 'Income Categories', '📂')}
+      {renderCategoryList('expense', 'Expense Categories', '💰')}
+      <div style={{fontSize:11,color:T.inkSoft,marginTop:10}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
+    </div>
+  );
+}
+
 function UpiManager({ upiList, setUpiList }) {
   const [form, setForm]     = useState(EMPTY_UPI);
   const [editId, setEditId] = useState(null);
@@ -1439,28 +1604,8 @@ function SettingsSheet({
         {/* Manage Categories */}
         {menuRow("📂","Manage Categories","Add, edit, or delete categories","categories")}
         {section==="categories" && (
-          <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>📂 Income Categories</div>
-            {categories.income.map((cat,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
-                <span style={{fontSize:18}}>{cat.icon}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l}</div>
-                </div>
-                <button onClick={()=>{setCategories({...categories,income:categories.income.filter((_,idx)=>idx!==i)});}} style={{padding:"5px 8px",borderRadius:8,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
-              </div>
-            ))}
-            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12,marginTop:14}}>💰 Expense Categories</div>
-            {categories.expense.map((cat,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
-                <span style={{fontSize:18}}>{cat.icon}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{cat.l}</div>
-                </div>
-                <button onClick={()=>{setCategories({...categories,expense:categories.expense.filter((_,idx)=>idx!==i)});}} style={{padding:"5px 8px",borderRadius:8,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
-              </div>
-            ))}
-            <div style={{fontSize:11,color:T.inkSoft,marginTop:10}}>💡 Tip: You can delete categories, but "Other" is recommended to keep.</div>
+          <div onClick={e=>e.stopPropagation()}>
+            <CategoryManager categories={categories} setCategories={setCategories} T={T} R={R} SH={SH}/>
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
@@ -1818,6 +1963,12 @@ function Profile({ profile, setProfile, transactions, accounts, onBack }) {
             ? <ChipRow items={DATE_FORMATS} selected={form.dateFormat} onSelect={v=>setForm({...form,dateFormat:v})}/>
             : <div style={{fontSize:14,color:T.ink,fontWeight:600}}>{profile.dateFormat}</div>
           }
+
+          <Label>THEME</Label>
+          {editing
+            ? <ChipRow items={['light','dark','system']} selected={form.theme||'system'} onSelect={v=>setForm({...form,theme:v})}/>
+            : <div style={{fontSize:14,color:T.ink,fontWeight:600,textTransform:'capitalize'}}>{profile.theme||'system'}</div>
+          }
         </div>
       </div>
     </div>
@@ -2036,7 +2187,26 @@ export default function App() {
   const [showProfile,  setShowProfile]  = useState(false);
   const [showAccounts, setShowAccounts] = useState(false);
 
+  // Determine active theme based on profile setting
+  const activeTheme = profile.theme === 'system' ? getSystemTheme() : (profile.theme || 'dark');
+  const currentTheme = THEMES[activeTheme] || THEMES.dark;
+  const T_ACTIVE = currentTheme.colors;
+  const G_ACTIVE = currentTheme.gradient;
+
   useEffect(()=>{ if (!pinEnabled) setUnlocked(true); },[pinEnabled]);
+
+  // Listen to system theme changes if system theme is selected
+  useEffect(() => {
+    if (profile.theme === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => {
+        // Force re-render by updating a dummy state
+        setProfile(p => ({...p}));
+      };
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [profile.theme]);
 
   if (pinEnabled && !unlocked) {
     return <PinScreen mode="verify" savedPin={pin} onSuccess={()=>setUnlocked(true)}/>;
