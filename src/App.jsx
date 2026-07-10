@@ -123,30 +123,30 @@ const THEMES = {
   },
   dark: {
     colors: {
-      bg:           "#1a3a5c",
+      bg:           "#0A1929",
       bgSoft:       "#0F2540",
-      teal900:      "#13283F",
-      teal800:      "#1a3a5c",
-      teal700:      "#1E3A5F",
-      teal600:      "#234A75",
-      teal500:      "#2D6A9F",
+      teal900:      "#0A1929",
+      teal800:      "#132F4C",
+      teal700:      "#E8EDF3", // Switched to bright color for dark theme
+      teal600:      "#66B2FF",
+      teal500:      "#3399FF",
       mint:         "#7EFFC5",
       mintSoft:     "#1a4d3e",
       gold:         "#F5B942",
       goldSoft:     "#3d2f1a",
       income:       "#1DB954",
       incomeSoft:   "#0d3d1f",
-      expense:      "#E53E3E",
+      expense:      "#FCA5A5",
       expenseSoft:  "#4d1a1a",
-      transfer:     "#7B5EA7",
+      transfer:     "#9F8AE8",
       transferSoft: "#2d1f4d",
-      ink:          "#E8EDF3",
-      inkSoft:      "#8A93A0",
-      line:         "#2d4a6f",
-      card:         "#0F2540",
-      glass:        "rgba(255,255,255,0.13)",
-      glassBorder:  "rgba(255,255,255,0.18)",
-      glassStrong:  "rgba(255,255,255,0.15)",
+      ink:          "#FFFFFF",
+      inkSoft:      "#B2BAC2",
+      line:         "#1E4976",
+      card:         "#132F4C",
+      glass:        "rgba(255,255,255,0.08)",
+      glassBorder:  "rgba(255,255,255,0.12)",
+      glassStrong:  "rgba(255,255,255,0.12)",
     },
     gradient: {
       header:  "linear-gradient(135deg,#1a3a5c 0%,#2d6a9f 100%)",
@@ -676,7 +676,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
                   <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{acc.name}</div>
                   <div style={{fontSize:11,color:T.inkSoft}}>{acc.type}</div>
                 </div>
-                <div style={{fontSize:15,fontWeight:800,color:acc.balance>=0?T.teal700:T.expense,fontFamily:THEME.font.money}}>{fmt(acc.balance)}</div>
+                <div style={{fontSize:15,fontWeight:800,color:acc.balance>=0?T.ink:T.expense,fontFamily:THEME.font.money}}>{fmt(acc.balance)}</div>
               </div>
             ))}
           </div>
@@ -692,7 +692,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
               <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>💼 Wealth Overview</div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div style={{fontSize:13,color:T.inkSoft}}>Declared Total</div>
-                <div style={{fontSize:14,fontWeight:700,color:T.teal700}}>{fmt(declaredAmount)}</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{fmt(declaredAmount)}</div>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
                 <div style={{fontSize:13,color:T.inkSoft}}>Currently Tracked</div>
@@ -723,7 +723,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
               <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>🔎 Manual Check</div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div style={{fontSize:13,color:T.inkSoft}}>App Calculated</div>
-                <div style={{fontSize:14,fontWeight:700,color:T.teal700}}>{fmt(totalTracked)}</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{fmt(totalTracked)}</div>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
                 <div style={{fontSize:13,color:T.inkSoft}}>Your Count</div>
@@ -1357,7 +1357,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
             {analysis.map(item => (
               <div key={item.name} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: R.md, background: T.bgSoft, border: `1px solid ${T.line}`, textAlign: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.teal700 }}>{item.count}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{item.count}</div>
                 <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, marginTop: 2 }}>{item.name}</div>
               </div>
             ))}
@@ -1391,7 +1391,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
                 <div style={{ fontSize: 11, color: "#A8B8B3", marginTop: 1 }}>{record.date} {record.status === "paid" && `· ${record.method}`}</div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: T.teal700, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
                 {record.photo && <button onClick={() => setViewPhoto(record.photo)} style={{ marginTop: 4, background: T.teal500, color: "white", border: "none", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>🖼️ Photo</button>}
               </div>
             </div>
