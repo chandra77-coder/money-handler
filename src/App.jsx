@@ -1248,7 +1248,18 @@ function Loans({ loans, setLoans, setTrash }) {
 }
 
 // ─── WORK COMPONENT ───────────────────────────────────────────────────────────
-const EMPTY_WORK = { type: "work", name: "", customer: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null };
+function genWorkCode(existingCodes) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const len = 4;
+  let code;
+  do {
+    code = "";
+    for (let i = 0; i < len; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  } while (existingCodes.has(code));
+  return code;
+}
+
+const EMPTY_WORK = { type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null };
 
 function Work({ workRecords, setWorkRecords, workNames }) {
   const [search, setSearch] = useState("");
@@ -1262,11 +1273,24 @@ function Work({ workRecords, setWorkRecords, workNames }) {
     const v = e.target.value;
     setSearch(v);
     if (v.trim().toLowerCase() === "create") {
-      setTimeout(() => { setSearch(""); setForm(EMPTY_WORK); setEditId(null); setShowSheet(true); }, 200);
+      setTimeout(() => {
+        const existingCodes = new Set(workRecords.filter(w => w.code).map(w => w.code));
+        const newCode = genWorkCode(existingCodes);
+        setSearch("");
+        setForm({ ...EMPTY_WORK, code: newCode });
+        setEditId(null);
+        setShowSheet(true);
+      }, 200);
     }
   };
 
-  const openAdd = () => { setForm(EMPTY_WORK); setEditId(null); setShowSheet(true); };
+  const openAdd = () => {
+    const existingCodes = new Set(workRecords.filter(w => w.code).map(w => w.code));
+    const newCode = genWorkCode(existingCodes);
+    setForm({ ...EMPTY_WORK, code: newCode });
+    setEditId(null);
+    setShowSheet(true);
+  };
   const openEdit = (w) => { setForm({ ...w, amount: String(w.amount || "") }); setEditId(w.id); setShowSheet(true); };
 
   const handlePhoto = (e) => {
@@ -1290,7 +1314,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
       alert("Payment Method is required for Paid status.");
       return;
     }
-    const entry = { ...form, amount: form.status === "undecided" ? (parseFloat(form.amount) || 0) : parseFloat(form.amount) };
+    const entry = { ...form, amount: form.status === "undecided" ? (parseFloat(form.amount) || 0) : parseFloat(form.amount), code: form.code || "" };
     if (editId) setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
     else setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
     setShowSheet(false); setEditId(null);
@@ -1392,6 +1416,9 @@ function Work({ workRecords, setWorkRecords, workNames }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer}</div>
+                  <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: T.bgSoft, color: T.inkSoft, textTransform: "uppercase" }}>
+                    #{record.code}
+                  </span>
                   <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
                     {record.status}
                   </span>
