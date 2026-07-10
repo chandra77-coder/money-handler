@@ -1307,6 +1307,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   const totalWork = workRecords.filter(w => w.type === "work").length;
   const paidCount = workRecords.filter(w => w.type === "work" && w.status === "paid").length;
   const unpaidCount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").length;
+  const unpaidAmount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").reduce((s, w) => s + w.amount, 0);
 
   const visible = workRecords.filter(w => {
     if (!search) return true;
@@ -1339,14 +1340,14 @@ function Work({ workRecords, setWorkRecords, workNames }) {
             </div>
           </div>
           <div style={{ height: 1, background: T.glassBorder, marginBottom: 12 }} />
-          <div style={{ display: "flex", gap: 20 }}>
+          <div style={{ display: "flex", gap: 24 }}>
             <div>
-              <div style={{ fontSize: 10, opacity: .6 }}>🟢 PAID</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.mint }}>{paidCount}</div>
+              <div style={{ fontSize: 10, opacity: .6, marginBottom: 2 }}>🟢 PAID</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.mint }}>{paidCount} work</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, opacity: .6 }}>🔴 UNPAID</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#FCA5A5" }}>{unpaidCount}</div>
+              <div style={{ fontSize: 10, opacity: .6, marginBottom: 2 }}>🔴 UNPAID</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#FCA5A5" }}>{fmt(unpaidAmount)} <span style={{fontSize:11, opacity:.8, fontWeight:500}}>({unpaidCount} work)</span></div>
             </div>
           </div>
         </div>
@@ -2182,7 +2183,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 1.5.1", null)}
+        {menuRow("ℹ️","About","Version 1.5.2", null)}
 
       </div>
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-07-10
+
+### Added
+- **Unpaid Amount Tracking** - The Work Tracker now displays the total pending amount for unpaid jobs.
+- **Enhanced Job Counts** - Statistics now display job counts with descriptive labels (e.g., "5 work").
+
 ## [1.5.1] - 2026-07-10
 
 ### Fixed
@@ -88,7 +94,12 @@ All notable changes to this project will be documented in this file.
 
 ## Features by Version
 
-### v1.5.1 (Current)
+### v1.5.2 (Current)
+- ✅ Added total unpaid amount tracking
+- ✅ Descriptive job counts ("X work")
+- ✅ All v1.5.1 features
+
+### v1.5.1
 - ✅ Fixed dark mode visibility issues
 - ✅ Corrected work stats and analysis logic
 - ✅ Improved form validation
