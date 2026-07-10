@@ -1286,6 +1286,10 @@ function Work({ workRecords, setWorkRecords, workNames }) {
       alert("Amount is required for Paid/Unpaid status.");
       return;
     }
+    if (form.status === "paid" && !form.method) {
+      alert("Payment Method is required for Paid status.");
+      return;
+    }
     const entry = { ...form, amount: form.status === "undecided" ? (parseFloat(form.amount) || 0) : parseFloat(form.amount) };
     if (editId) setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
     else setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
@@ -1299,10 +1303,10 @@ function Work({ workRecords, setWorkRecords, workNames }) {
 
   // Stats
   const today = todayStr();
-  const todayEarning = workRecords.filter(w => w.status === "paid" && w.date === today).reduce((s, w) => s + w.amount, 0);
-  const totalWork = workRecords.length;
-  const paidCount = workRecords.filter(w => w.status === "paid").length;
-  const unpaidCount = workRecords.filter(w => w.status === "unpaid").length;
+  const todayEarning = workRecords.filter(w => w.type === "work" && w.status === "paid" && w.date === today).reduce((s, w) => s + w.amount, 0);
+  const totalWork = workRecords.filter(w => w.type === "work").length;
+  const paidCount = workRecords.filter(w => w.type === "work" && w.status === "paid").length;
+  const unpaidCount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").length;
 
   const visible = workRecords.filter(w => {
     if (!search) return true;
@@ -1313,8 +1317,8 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   // Analysis
   const analysis = workNames.map(name => ({
     name,
-    count: workRecords.filter(w => w.name === name).length
-  })).sort((a, b) => b.count - a.count);
+    count: workRecords.filter(w => w.type === "work" && w.name === name).length
+  })).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
 
   return (
     <div>
@@ -1355,12 +1359,16 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         <div style={{ background: T.card, borderRadius: R.lg, padding: "14px", marginBottom: 14, boxShadow: SH.card }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 12 }}>📊 Work Analysis</div>
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-            {analysis.map(item => (
-              <div key={item.name} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: R.md, background: T.bgSoft, border: `1px solid ${T.line}`, textAlign: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{item.count}</div>
-                <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, marginTop: 2 }}>{item.name}</div>
-              </div>
-            ))}
+            {analysis.length === 0 ? (
+              <div style={{ fontSize: 12, color: T.inkSoft, padding: "10px 0" }}>No jobs analyzed yet.</div>
+            ) : (
+              analysis.map(item => (
+                <div key={item.name} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: R.md, background: T.bgSoft, border: `1px solid ${T.line}`, textAlign: "center" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{item.count}</div>
+                  <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, marginTop: 2 }}>{item.name}</div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -2174,7 +2182,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 1.5.0", null)}
+        {menuRow("ℹ️","About","Version 1.5.1", null)}
 
       </div>
 

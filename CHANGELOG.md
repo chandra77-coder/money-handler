@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-07-10
+
+### Fixed
+- **Dark Mode Visibility** - Fixed numbers and text visibility in dark theme across the app.
+- **Work Stats Logic** - Earnings and job counts now correctly exclude job-related expenses (Spend type).
+- **Form Validation** - Added strict validation for payment methods when a job is marked as Paid.
+- **Analysis Cleanup** - Work analysis now only shows categories with active records for a cleaner UI.
+
 ## [1.5.0] - 2026-07-10
 
 ### Added
@@ -80,7 +88,13 @@ All notable changes to this project will be documented in this file.
 
 ## Features by Version
 
-### v1.5.0 (Current)
+### v1.5.1 (Current)
+- ✅ Fixed dark mode visibility issues
+- ✅ Corrected work stats and analysis logic
+- ✅ Improved form validation
+- ✅ All v1.5.0 features
+
+### v1.5.0
 - ✅ New Work Tab for professional tracking
 - ✅ Job analysis and earnings dashboard
 - ✅ Photo storage for document verification
