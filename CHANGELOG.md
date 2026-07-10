@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-07-10
+
+### Added
+- **Work Tab** - Track customer jobs, payment status, and business analysis
+- **Job History** - Comprehensive list of work records with status badges
+- **Work Analysis** - Breakdown of jobs done per category
+- **Photo Capture** - Attach document/ID photos to work records with secure storage
+- **Work Name Manager** - Manage custom job types in Settings
+- **Today's Earnings** - Real-time tracking of income from work
+
+### Changed
+- **App Description** - Updated to include business tracking capabilities
+- **Version Update** - Bumped to v1.5.0 across the app
+
 ## [1.3.0] - 2026-07-04
 
 ### Added
@@ -66,7 +80,13 @@ All notable changes to this project will be documented in this file.
 
 ## Features by Version
 
-### v1.3.0 (Current)
+### v1.5.0 (Current)
+- ✅ New Work Tab for professional tracking
+- ✅ Job analysis and earnings dashboard
+- ✅ Photo storage for document verification
+- ✅ All v1.3.0 features
+
+### v1.3.0
 - ✅ Premium UI with glassmorphism
 - ✅ UPI management with QR codes
 - ✅ Enhanced dashboard with wealth overview
@@ -142,5 +162,5 @@ For issues, feature requests, or questions:
 
 ---
 
-**Last Updated:** July 4, 2026
+**Last Updated:** July 10, 2026
 **Maintained by:** chandra77-coder
