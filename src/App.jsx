@@ -299,6 +299,9 @@ const OCCUPATIONS = ["Salaried","Business","Freelance","Student","Other"];
 const LANGUAGES = ["English","Bengali"];
 const DATE_FORMATS = ["DD/MM/YYYY","MM/DD/YYYY","YYYY-MM-DD"];
 
+const SEED_WORK_NAMES = ["PAN Card", "Aadhar Card", "Passport"];
+const SEED_WORK_RECORDS = [];
+
 // TX_CATS is now dynamically loaded from localStorage in the App component
 const INCOME_METHODS  = ["Cash","Online / UPI","Bank Transfer","Cheque"];
 const EXPENSE_METHODS = ["Cash","UPI / Online","Card","Bank Transfer"];
@@ -1244,6 +1247,246 @@ function Loans({ loans, setLoans, setTrash }) {
   );
 }
 
+// ─── WORK COMPONENT ───────────────────────────────────────────────────────────
+const EMPTY_WORK = { type: "work", name: "", customer: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null };
+
+function Work({ workRecords, setWorkRecords, workNames }) {
+  const [search, setSearch] = useState("");
+  const [showSheet, setShowSheet] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(EMPTY_WORK);
+  const [delId, setDelId] = useState(null);
+  const [viewPhoto, setViewPhoto] = useState(null);
+
+  const handleSearch = (e) => {
+    const v = e.target.value;
+    setSearch(v);
+    if (v.trim().toLowerCase() === "create") {
+      setTimeout(() => { setSearch(""); setForm(EMPTY_WORK); setEditId(null); setShowSheet(true); }, 200);
+    }
+  };
+
+  const openAdd = () => { setForm(EMPTY_WORK); setEditId(null); setShowSheet(true); };
+  const openEdit = (w) => { setForm({ ...w, amount: String(w.amount || "") }); setEditId(w.id); setShowSheet(true); };
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (compressed) => {
+      setForm(f => ({ ...f, photo: compressed }));
+    });
+  };
+
+  const save = () => {
+    if (!form.name || !form.customer) {
+      alert("Work Name and Customer Name are required.");
+      return;
+    }
+    if (form.status !== "undecided" && (!form.amount || parseFloat(form.amount) <= 0)) {
+      alert("Amount is required for Paid/Unpaid status.");
+      return;
+    }
+    const entry = { ...form, amount: form.status === "undecided" ? (parseFloat(form.amount) || 0) : parseFloat(form.amount) };
+    if (editId) setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
+    else setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
+    setShowSheet(false); setEditId(null);
+  };
+
+  const remove = (id) => {
+    setWorkRecords(prev => prev.filter(w => w.id !== id));
+    setDelId(null);
+  };
+
+  // Stats
+  const today = todayStr();
+  const todayEarning = workRecords.filter(w => w.status === "paid" && w.date === today).reduce((s, w) => s + w.amount, 0);
+  const totalWork = workRecords.length;
+  const paidCount = workRecords.filter(w => w.status === "paid").length;
+  const unpaidCount = workRecords.filter(w => w.status === "unpaid").length;
+
+  const visible = workRecords.filter(w => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (w.name || "").toLowerCase().includes(q) || (w.customer || "").toLowerCase().includes(q);
+  });
+
+  // Analysis
+  const analysis = workNames.map(name => ({
+    name,
+    count: workRecords.filter(w => w.name === name).length
+  })).sort((a, b) => b.count - a.count);
+
+  return (
+    <div>
+      <div style={{ background: G.header, padding: "22px 16px 18px", color: "white", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, boxShadow: SH.card }}>
+        <div style={{ fontSize: 11, opacity: .6, letterSpacing: 1.5, fontWeight: 600 }}>{monthYearStr()}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 14, fontFamily: THEME.font.money }}>Work Tracker</div>
+
+        {/* Stats Card */}
+        <div style={{ background: T.glassStrong, borderRadius: R.lg, padding: "15px 18px", border: `1px solid ${T.glassBorder}`, marginBottom: 14, backdropFilter: "blur(12px)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, opacity: .65, fontWeight: 600 }}>TODAY'S EARNING</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: T.gold, fontFamily: THEME.font.money }}>{fmt(todayEarning)}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, opacity: .65, fontWeight: 600 }}>TOTAL JOBS</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "white", fontFamily: THEME.font.money }}>{totalWork}</div>
+            </div>
+          </div>
+          <div style={{ height: 1, background: T.glassBorder, marginBottom: 12 }} />
+          <div style={{ display: "flex", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 10, opacity: .6 }}>🟢 PAID</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.mint }}>{paidCount}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, opacity: .6 }}>🔴 UNPAID</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#FCA5A5" }}>{unpaidCount}</div>
+            </div>
+          </div>
+        </div>
+
+        <SearchBar value={search} onChange={handleSearch} placeholder='Search jobs or type "create"…' />
+      </div>
+
+      <div style={{ padding: "10px 12px" }}>
+        {/* Analysis Section */}
+        <div style={{ background: T.card, borderRadius: R.lg, padding: "14px", marginBottom: 14, boxShadow: SH.card }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 12 }}>📊 Work Analysis</div>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+            {analysis.map(item => (
+              <div key={item.name} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: R.md, background: T.bgSoft, border: `1px solid ${T.line}`, textAlign: "center" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.teal700 }}>{item.count}</div>
+                <div style={{ fontSize: 10, color: T.inkSoft, fontWeight: 600, marginTop: 2 }}>{item.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* History List */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 4 }}>History</div>
+        {visible.length === 0 && (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "#9FB3AD" }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>💼</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{search ? "No results" : "No work records"}</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Tap + to add your first job</div>
+          </div>
+        )}
+
+        {visible.map(record => (
+          <div key={record.id} style={{ background: T.card, borderRadius: R.lg, padding: "12px", marginBottom: 12, boxShadow: SH.card, borderLeft: `4px solid ${record.status === "paid" ? T.income : record.status === "unpaid" ? T.expense : T.gold}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: R.md, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                {record.type === "work" ? "💼" : "💸"}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer}</div>
+                  <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
+                    {record.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>{record.name}</div>
+                <div style={{ fontSize: 11, color: "#A8B8B3", marginTop: 1 }}>{record.date} {record.status === "paid" && `· ${record.method}`}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.teal700, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
+                {record.photo && <button onClick={() => setViewPhoto(record.photo)} style={{ marginTop: 4, background: T.teal500, color: "white", border: "none", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>🖼️ Photo</button>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.line}` }}>
+              <button onClick={() => openEdit(record)} style={{ flex: 1, padding: "8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
+              <button onClick={() => setDelId(record.id)} style={{ padding: "8px 12px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* FAB */}
+      <button onClick={openAdd} style={{ position: "fixed", bottom: 90, right: "max(16px, calc(50% - 210px + 16px))", width: 58, height: 58, borderRadius: R.pill, background: G.gold, color: T.teal900, fontSize: 28, border: "none", cursor: "pointer", fontWeight: 700, boxShadow: "0 8px 22px rgba(232,199,126,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+
+      {/* Photo Viewer */}
+      {viewPhoto && (
+        <div onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <img src={viewPhoto} alt="Work Photo" style={{ maxWidth: "100%", maxHeight: "80%", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
+          <button style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {delId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
+          <div style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Delete this record?</div>
+            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>This will also delete the attached photo.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <FBtn onClick={() => setDelId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
+              <FBtn onClick={() => remove(delId)} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entry Form Sheet */}
+      <Sheet open={showSheet} onClose={() => setShowSheet(false)}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginBottom: 14, fontFamily: THEME.font.money }}>{editId ? "Edit Record" : "New Work Record"}</div>
+
+        <TypeToggle options={[["work", "💼 Work"], ["spend", "💸 Spend"]]} value={form.type} onChange={v => setForm({ ...form, type: v })} colors={{ work: G.primary, spend: G.expense }} />
+
+        <Label>WORK NAME</Label>
+        {workNames.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#946A1F", marginBottom: 12, padding: "10px 12px", background: T.goldSoft, borderRadius: R.sm }}>⚠️ No work names. Add them in Settings.</div>
+        ) : (
+          <ChipRow items={workNames} selected={form.name} onSelect={v => setForm({ ...form, name: v })} />
+        )}
+
+        <Label>CUSTOMER NAME</Label>
+        <FInput value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })} placeholder="Enter customer name" style={{ marginBottom: 10 }} />
+
+        <Label>PAYMENT STATUS</Label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {["undecided", "unpaid", "paid"].map(s => (
+            <button key={s} onClick={() => setForm({ ...form, status: s })} style={{ flex: 1, padding: "10px", border: "1.5px solid", borderRadius: R.sm, cursor: "pointer", fontWeight: 700, fontSize: 11, fontFamily: THEME.font.body, borderColor: form.status === s ? T.teal500 : T.line, background: form.status === s ? T.mintSoft : T.card, color: form.status === s ? T.teal700 : T.inkSoft, textTransform: "capitalize" }}>{s}</button>
+          ))}
+        </div>
+
+        {form.status === "paid" && (
+          <>
+            <Label>PAYMENT METHOD</Label>
+            <ChipRow items={["Online", "Cash"]} selected={form.method} onSelect={v => setForm({ ...form, method: v })} />
+          </>
+        )}
+
+        <Label>AMOUNT {form.status === "undecided" ? "(OPTIONAL)" : ""}</Label>
+        <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, fontFamily: THEME.font.money }} />
+
+        <Label>PHOTO (OPTIONAL)</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          {form.photo ? (
+            <div style={{ position: "relative" }}>
+              <img src={form.photo} alt="Preview" style={{ width: 60, height: 60, borderRadius: 10, objectFit: "cover", border: `2px solid ${T.teal500}` }} />
+              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -8, right: -8, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 12, cursor: "pointer" }}>✕</button>
+            </div>
+          ) : (
+            <label style={{ width: 60, height: 60, borderRadius: 10, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer" }}>
+              📷
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+          )}
+          <div style={{ fontSize: 12, color: T.inkSoft }}>{form.photo ? "Photo attached" : "Take a photo for ID/docs"}</div>
+        </div>
+
+        <Label>DATE</Label>
+        <FInput value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} type="date" style={{ marginBottom: 16 }} />
+
+        <FBtn onClick={save} style={{ width: "100%", padding: "15px" }}>{editId ? "Update Record" : "Confirm Entry"}</FBtn>
+      </Sheet>
+    </div>
+  );
+}
+
 // ─── UPI MANAGER (used inside Settings sheet) ─────────────────────────────────
 const EMPTY_UPI = { label:"", upiId:"", qr:null };
 
@@ -1497,6 +1740,29 @@ function TrashManager({ trash, setTrash, setTransactions, setLoans, setCategorie
   );
 }
 
+function WorkNameManager({ workNames, setWorkNames }) {
+  const [newName, setNewName] = useState("");
+  const add = () => { if (newName.trim()) { setWorkNames([...workNames, newName.trim()]); setNewName(""); } };
+  const remove = (name) => setWorkNames(workNames.filter(n => n !== name));
+  return (
+    <div style={{ background: T.bgSoft, borderRadius: R.lg, padding: "14px", marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 12 }}>Manage Work Names</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        {workNames.map(n => (
+          <div key={n} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: T.card, borderRadius: R.sm, boxShadow: SH.soft }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{n}</span>
+            <button onClick={() => remove(n)} style={{ border: "none", background: "none", color: T.expense, fontSize: 14, cursor: "pointer", padding: 0 }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <FInput value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Passport" style={{ flex: 1 }} />
+        <FBtn onClick={add} style={{ padding: "10px 16px" }}>Add</FBtn>
+      </div>
+    </div>
+  );
+}
+
 function UpiManager({ upiList, setUpiList }) {
   const [form, setForm]     = useState(EMPTY_UPI);
   const [editId, setEditId] = useState(null);
@@ -1591,6 +1857,7 @@ function SettingsSheet({
   upiList, setUpiList,
   notifyEnabled, setNotifyEnabled,
   categories, setCategories,
+  workNames, setWorkNames,
   trash, setTrash,
   onOpenProfile,
   onOpenAccounts,
@@ -1888,6 +2155,14 @@ function SettingsSheet({
         {section==="categories" && (
           <div onClick={e=>e.stopPropagation()}>
             <CategoryManager categories={categories} setCategories={setCategories} setTrash={setTrash} T={T} R={R} SH={SH}/>
+          </div>
+        )}
+
+        {/* Manage Work Names */}
+        {menuRow("💼","Manage Work Names","Add or remove job types","worknames")}
+        {section==="worknames" && (
+          <div onClick={e=>e.stopPropagation()}>
+            <WorkNameManager workNames={workNames} setWorkNames={setWorkNames} />
           </div>
         )}
 
@@ -2497,7 +2772,9 @@ export default function App() {
   const [profile,      setProfile]      = useLS("fm_profile",        SEED_PROFILE);
   const [notifyEnabled,setNotifyEnabled]= useLS("fm_notify",         false);
   const [categories,   setCategories]   = useLS("fm_categories",      SEED_CATEGORIES);
-  const [trash,        setTrash]        = useLS("fm_trash",           { transactions: [], loans: [], categories: { income: [], expense: [] } });
+    const [trash,          setTrash]          = useLS("fm_trash", { transactions: [], loans: [], categories: { income: [], expense: [] } });
+  const [workNames,      setWorkNames]      = useLS("fm_work_names", SEED_WORK_NAMES);
+  const [workRecords,    setWorkRecords]    = useLS("fm_work_records", SEED_WORK_RECORDS);
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -2558,6 +2835,7 @@ export default function App() {
     {id:"loans",        icon:"🤝", label:"Loans"},
     {id:"goal",         icon:"🎯", label:"Goal"},
     {id:"pay",          icon:"💸", label:"Pay"},
+    {id:"work",         icon:"💼", label:"Work"},
   ];
 
   return (
@@ -2581,6 +2859,8 @@ export default function App() {
 
       {tab==="pay"          && <Pay upiList={upiList}/>}
 
+      {tab==="work"         && <Work workRecords={workRecords} setWorkRecords={setWorkRecords} workNames={workNames} />}
+
       {/* Settings — bottom sheet, opened via gear icon on Home */}
       <SettingsSheet
         open={settingsOpen} onClose={()=>setSettingsOpen(false)}
@@ -2595,6 +2875,7 @@ export default function App() {
         upiList={upiList} setUpiList={setUpiList}
         notifyEnabled={notifyEnabled} setNotifyEnabled={setNotifyEnabled}
         categories={categories} setCategories={setCategories}
+        workNames={workNames} setWorkNames={setWorkNames}
         trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
