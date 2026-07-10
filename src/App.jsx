@@ -1278,12 +1278,12 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   };
 
   const save = () => {
-    if (!form.name || !form.customer) {
-      alert("Work Name and Customer Name are required.");
+    if (!form.name) {
+      alert("Work Name is required.");
       return;
     }
-    if (form.status !== "undecided" && (!form.amount || parseFloat(form.amount) <= 0)) {
-      alert("Amount is required for Paid/Unpaid status.");
+    if (!form.amount || parseFloat(form.amount) <= 0) {
+      alert("Work Amount is required.");
       return;
     }
     if (form.status === "paid" && !form.method) {
@@ -1451,8 +1451,8 @@ function Work({ workRecords, setWorkRecords, workNames }) {
           <ChipRow items={workNames} selected={form.name} onSelect={v => setForm({ ...form, name: v })} />
         )}
 
-        <Label>CUSTOMER NAME</Label>
-        <FInput value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })} placeholder="Enter customer name" style={{ marginBottom: 10 }} />
+        <Label>CUSTOMER NAME (OPTIONAL)</Label>
+        <FInput value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })} placeholder="Enter customer name (optional)" style={{ marginBottom: 10 }} />
 
         <Label>PAYMENT STATUS</Label>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -1468,7 +1468,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
           </>
         )}
 
-        <Label>AMOUNT {form.status === "undecided" ? "(OPTIONAL)" : ""}</Label>
+        <Label>WORK AMOUNT</Label>
         <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, fontFamily: THEME.font.money }} />
 
         <Label>PHOTO (OPTIONAL)</Label>
