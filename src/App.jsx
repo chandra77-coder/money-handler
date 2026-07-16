@@ -1346,19 +1346,28 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   };
 
   const save = () => {
-    if (!form.name) {
-      alert("Work Name is required.");
-      return;
+    if (form.type === "work") {
+      if (!form.name) {
+        alert("Work Name is required.");
+        return;
+      }
+      if (!form.amount || parseFloat(form.amount) <= 0) {
+        alert("Work Amount is required.");
+        return;
+      }
+      if (form.status === "paid" && !form.method) {
+        alert("Payment Method is required for Paid status.");
+        return;
+      }
+    } else {
+      // spend type
+      if (!form.amount || parseFloat(form.amount) <= 0) {
+        alert("Spend Amount is required.");
+        return;
+      }
     }
-    if (!form.amount || parseFloat(form.amount) <= 0) {
-      alert("Work Amount is required.");
-      return;
-    }
-    if (form.status === "paid" && !form.method) {
-      alert("Payment Method is required for Paid status.");
-      return;
-    }
-    const entry = { ...form, amount: form.status === "undecided" ? (parseFloat(form.amount) || 0) : parseFloat(form.amount), code: form.code || "" };
+    const parsedAmount = parseFloat(form.amount) || 0;
+    const entry = { ...form, amount: parsedAmount, code: form.code || "" };
     if (editId) setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
     else setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
     setShowSheet(false); setEditId(null);
@@ -1515,31 +1524,38 @@ function Work({ workRecords, setWorkRecords, workNames }) {
 
         <TypeToggle options={[["work", "💼 Work"], ["spend", "💸 Spend"]]} value={form.type} onChange={v => setForm({ ...form, type: v })} colors={{ work: G.primary, spend: G.expense }} />
 
-        <Label>WORK NAME</Label>
-        {workNames.length === 0 ? (
-          <div style={{ fontSize: 12, color: "#946A1F", marginBottom: 12, padding: "10px 12px", background: T.goldSoft, borderRadius: R.sm }}>⚠️ No work names. Add them in Settings.</div>
-        ) : (
-          <ChipRow items={workNames} selected={form.name} onSelect={v => setForm({ ...form, name: v })} />
-        )}
-
-        <Label>CUSTOMER NAME (OPTIONAL)</Label>
-        <FInput value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })} placeholder="Enter customer name (optional)" style={{ marginBottom: 10 }} />
-
-        <Label>PAYMENT STATUS</Label>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {["undecided", "unpaid", "paid"].map(s => (
-            <button key={s} onClick={() => setForm({ ...form, status: s })} style={{ flex: 1, padding: "10px", border: "1.5px solid", borderRadius: R.sm, cursor: "pointer", fontWeight: 700, fontSize: 11, fontFamily: THEME.font.body, borderColor: form.status === s ? T.teal500 : T.line, background: form.status === s ? T.mintSoft : T.card, color: form.status === s ? T.teal700 : T.inkSoft, textTransform: "capitalize" }}>{s}</button>
-          ))}
-        </div>
-
-        {form.status === "paid" && (
+        {form.type === "work" && (
           <>
-            <Label>PAYMENT METHOD</Label>
-            <ChipRow items={["Online", "Cash"]} selected={form.method} onSelect={v => setForm({ ...form, method: v })} />
+            <Label>WORK NAME</Label>
+            {workNames.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#946A1F", marginBottom: 12, padding: "10px 12px", background: T.goldSoft, borderRadius: R.sm }}>⚠️ No work names. Add them in Settings.</div>
+            ) : (
+              <ChipRow items={workNames} selected={form.name} onSelect={v => setForm({ ...form, name: v })} />
+            )}
           </>
         )}
 
-        <Label>WORK AMOUNT</Label>
+        <Label>{form.type === "spend" ? "DESCRIPTION (OPTIONAL)" : "CUSTOMER NAME (OPTIONAL)"}</Label>
+        <FInput value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })} placeholder={form.type === "spend" ? "e.g. Tools, Fuel, Supplies…" : "Enter customer name (optional)"} style={{ marginBottom: 10 }} />
+
+        {form.type === "work" && (
+          <>
+            <Label>PAYMENT STATUS</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {["undecided", "unpaid", "paid"].map(s => (
+                <button key={s} onClick={() => setForm({ ...form, status: s })} style={{ flex: 1, padding: "10px", border: "1.5px solid", borderRadius: R.sm, cursor: "pointer", fontWeight: 700, fontSize: 11, fontFamily: THEME.font.body, borderColor: form.status === s ? T.teal500 : T.line, background: form.status === s ? T.mintSoft : T.card, color: form.status === s ? T.teal700 : T.inkSoft, textTransform: "capitalize" }}>{s}</button>
+              ))}
+            </div>
+            {form.status === "paid" && (
+              <>
+                <Label>PAYMENT METHOD</Label>
+                <ChipRow items={["Online", "Cash"]} selected={form.method} onSelect={v => setForm({ ...form, method: v })} />
+              </>
+            )}
+          </>
+        )}
+
+        <Label>{form.type === "spend" ? "SPEND AMOUNT" : "WORK AMOUNT"}</Label>
         <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, fontFamily: THEME.font.money }} />
 
         <Label>PHOTO (OPTIONAL)</Label>
