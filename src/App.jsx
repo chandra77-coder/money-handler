@@ -362,11 +362,13 @@ function ToggleSwitch({ on, onChange }) {
 
 function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
   if (!tx) return null;
+  const [viewPhoto, setViewPhoto] = useState(null);
   const color = tx.type==="income" ? T.income : tx.type==="transfer" ? "#7B5EA7" : T.expense;
   const bg    = tx.type==="income" ? T.incomeSoft : tx.type==="transfer" ? T.transferSoft : T.expenseSoft;
   const prefix= tx.type==="income" ? "+" : tx.type==="transfer" ? "⇄" : "−";
   const time  = fmtTime(tx.createdAt);
   return (
+    <>
     <Sheet open={!!tx} onClose={onClose}>
       <div style={{textAlign:"center",marginBottom:18}}>
         <div style={{width:56,height:56,borderRadius:R.lg,background:bg,margin:"0 auto 10px",
@@ -378,6 +380,14 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
           {prefix}{fmt(tx.amount)}
         </div>
       </div>
+
+      {/* Photo Section */}
+      {tx.photo && (
+        <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"14px",marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.inkSoft,marginBottom:10}}>📸 ATTACHED PHOTO</div>
+          <img src={tx.photo} alt="Transaction" style={{width:"100%",borderRadius:R.md,objectFit:"cover",maxHeight:200,cursor:"pointer",border:`2px solid ${T.teal500}`}} onClick={()=>setViewPhoto(tx.photo)}/>
+        </div>
+      )}
 
       <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"4px 14px"}}>
         {[
@@ -413,6 +423,15 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
         )}
       </div>
     </Sheet>
+
+    {/* Photo Viewer Modal */}
+    {viewPhoto && (
+      <div onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <img src={viewPhoto} alt="Transaction Photo" style={{ maxWidth: "100%", maxHeight: "80%", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
+        <button onClick={() => setViewPhoto(null)} style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -822,7 +841,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
 }
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
-const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:""};
+const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null};
 
 function Transactions({ transactions, setTransactions, setTrash, accounts, categories }) {
   const [search, setSearch]       = useState("");
@@ -830,6 +849,14 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(EMPTY_TX);
   const [selectedTx, setSelectedTx] = useState(null);
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, (compressed) => {
+      setForm(f => ({ ...f, photo: compressed }));
+    });
+  };
 
   const deleteTx = (id) => {
     const tx = transactions.find(t => t.id === id);
@@ -1027,6 +1054,23 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
         <Label>NOTE (OPTIONAL)</Label>
         <FInput value={form.note} onChange={e=>setForm({...form,note:e.target.value})}
           placeholder="Add a note…" style={{marginBottom:10}}/>
+        
+        <Label>PHOTO (OPTIONAL)</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          {form.photo ? (
+            <div style={{ position: "relative" }}>
+              <img src={form.photo} alt="Preview" style={{ width: 60, height: 60, borderRadius: 10, objectFit: "cover", border: `2px solid ${T.teal500}` }} />
+              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -8, right: -8, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 12, cursor: "pointer" }}>✕</button>
+            </div>
+          ) : (
+            <label style={{ width: 60, height: 60, borderRadius: 10, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer" }}>
+              📷
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+          )}
+          <div style={{ fontSize: 12, color: T.inkSoft }}>{form.photo ? "Photo attached" : "Add a photo for receipt/bill"}</div>
+        </div>
+        
         <Label>DATE</Label>
         <FInput value={form.date} onChange={e=>setForm({...form,date:e.target.value})}
           type="date" style={{marginBottom:16}}/>
