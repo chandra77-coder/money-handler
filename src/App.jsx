@@ -382,12 +382,37 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
       </div>
 
       {/* Photo Section */}
-      {tx.photo && (
-        <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"14px",marginBottom:14}}>
-          <div style={{fontSize:12,fontWeight:700,color:T.inkSoft,marginBottom:10}}>📸 ATTACHED PHOTO</div>
-          <img src={tx.photo} alt="Transaction" style={{width:"100%",borderRadius:R.md,objectFit:"cover",maxHeight:200,cursor:"pointer",border:`2px solid ${T.teal500}`}} onClick={()=>setViewPhoto(tx.photo)}/>
+      <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontSize:18}}>📸</div>
+          <div style={{fontSize:13,fontWeight:700,color:T.inkSoft}}>PHOTO</div>
         </div>
-      )}
+        <div style={{display:"flex",gap:8}}>
+          {tx.photo && (
+            <button onClick={() => setViewPhoto(tx.photo)} style={{
+              padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.teal500}`,
+              background:T.mintSoft,color:T.teal700,fontSize:12,fontWeight:700,cursor:"pointer",
+              display:"flex",alignItems:"center",gap:5
+            }}>👁️ View</button>
+          )}
+          <label style={{
+            padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,
+            background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:5
+          }}>
+            {tx.photo ? "🔄 Replace" : "➕ Add Photo"}
+            <input type="file" accept="image/*" capture="environment" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                compressImage(file, (compressed) => {
+                  onEdit({ ...tx, photo: compressed });
+                  onClose();
+                });
+              }} style={{display:"none"}}/>
+          </label>
+        </div>
+      </div>
 
       <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"4px 14px"}}>
         {[
@@ -1056,19 +1081,20 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
           placeholder="Add a note…" style={{marginBottom:10}}/>
         
         <Label>PHOTO (OPTIONAL)</Label>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          {form.photo ? (
-            <div style={{ position: "relative" }}>
-              <img src={form.photo} alt="Preview" style={{ width: 60, height: 60, borderRadius: 10, objectFit: "cover", border: `2px solid ${T.teal500}` }} />
-              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -8, right: -8, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 12, cursor: "pointer" }}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <label style={{ width: 48, height: 48, borderRadius: R.sm, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>
+            {form.photo ? "🔄" : "📷"}
+            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+          </label>
+          {form.photo && (
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
+              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-          ) : (
-            <label style={{ width: 60, height: 60, borderRadius: 10, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer" }}>
-              📷
-              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
-            </label>
           )}
-          <div style={{ fontSize: 12, color: T.inkSoft }}>{form.photo ? "Photo attached" : "Add a photo for receipt/bill"}</div>
+          <div style={{ fontSize: 12, color: T.inkSoft, lineHeight: 1.3 }}>
+            {form.photo ? "Photo attached. Tap icon to replace." : "Tap icon to take/add a photo"}
+          </div>
         </div>
         
         <Label>DATE</Label>
@@ -1312,6 +1338,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   const [form, setForm] = useState(EMPTY_WORK);
   const [delId, setDelId] = useState(null);
   const [viewPhoto, setViewPhoto] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   const handleSearch = (e) => {
     const v = e.target.value;
@@ -1368,8 +1395,11 @@ function Work({ workRecords, setWorkRecords, workNames }) {
     }
     const parsedAmount = parseFloat(form.amount) || 0;
     const entry = { ...form, amount: parsedAmount, code: form.code || "" };
-    if (editId) setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
-    else setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
+    if (editId) {
+      setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
+    } else {
+      setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
+    }
     setShowSheet(false); setEditId(null);
   };
 
@@ -1460,36 +1490,70 @@ function Work({ workRecords, setWorkRecords, workNames }) {
           </div>
         )}
 
-        {visible.map(record => (
-          <div key={record.id} style={{ background: T.card, borderRadius: R.lg, padding: "12px", marginBottom: 12, boxShadow: SH.card, borderLeft: `4px solid ${record.status === "paid" ? T.income : record.status === "unpaid" ? T.expense : T.gold}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 44, height: 44, borderRadius: R.md, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                {record.type === "work" ? "💼" : "💸"}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer}</div>
-                  <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: T.bgSoft, color: T.inkSoft, textTransform: "uppercase" }}>
-                    #{record.code}
-                  </span>
-                  <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
-                    {record.status}
-                  </span>
+        {visible.map(record => {
+          const isExpanded = expandedId === record.id;
+          return (
+            <div key={record.id} onClick={() => setExpandedId(isExpanded ? null : record.id)} style={{ 
+              background: T.card, borderRadius: R.lg, padding: "12px", marginBottom: 12, boxShadow: SH.card, 
+              borderLeft: `4px solid ${record.status === "paid" ? T.income : record.status === "unpaid" ? T.expense : T.gold}`,
+              cursor: "pointer", transition: "all 0.2s ease"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: R.md, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                  {record.type === "work" ? "💼" : "💸"}
                 </div>
-                <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>{record.name}</div>
-                <div style={{ fontSize: 11, color: "#A8B8B3", marginTop: 1 }}>{record.date} {record.status === "paid" && `· ${record.method}`}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer}</div>
+                    <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: T.bgSoft, color: T.inkSoft, textTransform: "uppercase" }}>
+                      #{record.code}
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
+                      {record.status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>{record.name}</div>
+                  <div style={{ fontSize: 11, color: "#A8B8B3", marginTop: 1 }}>{record.date} {record.status === "paid" && `· ${record.method}`}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
+                </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
-                {record.photo && <button onClick={() => setViewPhoto(record.photo)} style={{ marginTop: 4, background: T.teal500, color: "white", border: "none", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>🖼️ Photo</button>}
-              </div>
+
+              {isExpanded && (
+                <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}`, animation: "fadeIn 0.2s ease" }}>
+                  {/* Row 1: Photo thumbnail + Delete button */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div style={{ width: 50, height: 50, borderRadius: R.sm, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${T.line}` }}>
+                      {record.photo ? <img src={record.photo} alt="Work" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>📷</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => openEdit(record)} style={{ padding: "8px 16px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
+                      <button onClick={() => setDelId(record.id)} style={{ padding: "8px 12px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🗑 Delete</button>
+                    </div>
+                  </div>
+                  
+                  {/* Row 2: View Photo + Add Photo */}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {record.photo && (
+                      <button onClick={() => setViewPhoto(record.photo)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.teal500}`, background: T.mintSoft, color: T.teal700, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View Photo</button>
+                    )}
+                    <label style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      {record.photo ? "🔄 Replace Photo" : "➕ Add Photo"}
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        compressImage(file, (compressed) => {
+                          setWorkRecords(prev => prev.map(w => w.id === record.id ? { ...w, photo: compressed } : w));
+                        });
+                      }} style={{ display: "none" }} />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.line}` }}>
-              <button onClick={() => openEdit(record)} style={{ flex: 1, padding: "8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
-              <button onClick={() => setDelId(record.id)} style={{ padding: "8px 12px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🗑</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* FAB */}
@@ -1508,8 +1572,8 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         <div style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
           <div style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Delete this record?</div>
-            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>This will also delete the attached photo.</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Delete this work entry?</div>
+            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>Are you sure you want to delete this work entry? This cannot be undone.</div>
             <div style={{ display: "flex", gap: 10 }}>
               <FBtn onClick={() => setDelId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
               <FBtn onClick={() => remove(delId)} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
@@ -1559,19 +1623,20 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, fontFamily: THEME.font.money }} />
 
         <Label>PHOTO (OPTIONAL)</Label>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          {form.photo ? (
-            <div style={{ position: "relative" }}>
-              <img src={form.photo} alt="Preview" style={{ width: 60, height: 60, borderRadius: 10, objectFit: "cover", border: `2px solid ${T.teal500}` }} />
-              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -8, right: -8, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 12, cursor: "pointer" }}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <label style={{ width: 48, height: 48, borderRadius: R.sm, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>
+            {form.photo ? "🔄" : "📷"}
+            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+          </label>
+          {form.photo && (
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
+              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-          ) : (
-            <label style={{ width: 60, height: 60, borderRadius: 10, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer" }}>
-              📷
-              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
-            </label>
           )}
-          <div style={{ fontSize: 12, color: T.inkSoft }}>{form.photo ? "Photo attached" : "Take a photo for ID/docs"}</div>
+          <div style={{ fontSize: 12, color: T.inkSoft, lineHeight: 1.3 }}>
+            {form.photo ? "Photo attached. Tap icon to replace." : "Tap icon to take/add a photo"}
+          </div>
         </div>
 
         <Label>DATE</Label>
