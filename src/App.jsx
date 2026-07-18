@@ -2335,7 +2335,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 1.6.0", null)}
+        {menuRow("ℹ️","About","Version 1.8.0", null)}
 
       </div>
 

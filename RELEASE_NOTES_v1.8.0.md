@@ -1,4 +1,4 @@
-# MoneyMate v1.6.0 - The UI & UX Redesign
+# MoneyMate v1.8.0 - The UI & UX Redesign
 
 This version brings a major overhaul to the Work and Transaction sections, focusing on a cleaner interface, better photo management, and fixing critical bugs.
 
@@ -17,5 +17,5 @@ This version brings a major overhaul to the Work and Transaction sections, focus
 - **UI Consistency**: Standardized photo UI patterns across all forms and views.
 
 ### 🚀 Technical Improvements
-- **Version Bump**: Updated to v1.6.0.
+- **Version Bump**: Updated to v1.8.0.
 - **Changelog**: Full history updated in CHANGELOG.md.

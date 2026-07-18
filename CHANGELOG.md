@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.6.0] - 2026-07-18
+## [1.8.0] - 2026-07-18
 
 ### Added
 - **Expandable Work Cards** - Redesigned the Work section with expandable cards for a cleaner, more interactive experience.
@@ -106,7 +106,7 @@ All notable changes to this project will be documented in this file.
 
 ## Features by Version
 
-### v1.6.0 (Current)
+### v1.8.0 (Current)
 - ✅ Expandable work cards and interactive redesign
 - ✅ Modal/Lightbox photo viewing system
 - ✅ Add/Replace photo from detail views
