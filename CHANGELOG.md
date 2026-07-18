@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-07-18
+
+### Added
+- **Expandable Work Cards** - Redesigned the Work section with expandable cards for a cleaner, more interactive experience.
+- **Improved Photo UI** - Replaced large inline photo previews with small thumbnails and dedicated "View Photo" and "Add/Replace Photo" buttons.
+- **Enhanced Photo Management** - Added the ability to directly add or replace photos from both Transaction and Work detail views.
+- **Delete Confirmation** - Implemented a clear confirmation dialog for deleting work entries to prevent accidental data loss.
+
+### Fixed
+- **Spend Update Bug** - Fixed the "double deduction" issue where updating a spend entry would subtract the amount again.
+- **UI Consistency** - Applied the new photo UI pattern across all transaction and work forms for a uniform look.
+
 ## [1.5.2] - 2026-07-10
 
 ### Added
@@ -94,7 +106,14 @@ All notable changes to this project will be documented in this file.
 
 ## Features by Version
 
-### v1.5.2 (Current)
+### v1.6.0 (Current)
+- ✅ Expandable work cards and interactive redesign
+- ✅ Modal/Lightbox photo viewing system
+- ✅ Add/Replace photo from detail views
+- ✅ Fixed spend update "double deduction" bug
+- ✅ Improved delete confirmation for work entries
+
+### v1.5.2
 - ✅ Added total unpaid amount tracking
 - ✅ Descriptive job counts ("X work")
 - ✅ All v1.5.1 features
@@ -187,5 +206,5 @@ For issues, feature requests, or questions:
 
 ---
 
-**Last Updated:** July 10, 2026
+**Last Updated:** July 18, 2026
 **Maintained by:** chandra77-coder
