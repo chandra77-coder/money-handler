@@ -442,7 +442,7 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
           </FBtn>
         )}
         {onDelete && (
-          <FBtn onClick={()=>{onDelete(tx.id);onClose();}} bg={G.expense} style={{flex:onEdit?1:2,padding:"14px"}}>
+          <FBtn onClick={()=>{onClose(); setTimeout(()=>onDelete(tx.id),150);}} bg={G.expense} style={{flex:onEdit?1:2,padding:"14px"}}>
             🗑 Delete
           </FBtn>
         )}
@@ -610,12 +610,15 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [editForm, setEditForm] = useState(EMPTY_TX);
 
-  const deleteTx = (id) => {
+  const [delTxId, setDelTxId] = useState(null);
+  const deleteTx = (id) => { setDelTxId(id); };
+  const confirmDeleteTx = (id) => {
     const tx = transactions.find(t => t.id === id);
     if (tx) {
       setTrash(prev => ({ ...prev, transactions: [...prev.transactions, tx] }));
       setTransactions(prev => prev.filter(t => t.id !== id));
     }
+    setDelTxId(null);
   };
 
   const openEdit = (tx) => {
@@ -1104,6 +1107,21 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       </Sheet>
 
       <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit}/>
+
+      {/* Delete Confirm Modal */}
+      {delTxId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
+          <div style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Delete this transaction?</div>
+            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>Are you sure? This will move it to Trash and can be restored later.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <FBtn onClick={() => setDelTxId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
+              <FBtn onClick={() => confirmDeleteTx(delTxId)} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1522,24 +1540,19 @@ function Work({ workRecords, setWorkRecords, workNames }) {
 
               {isExpanded && (
                 <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}`, animation: "fadeIn 0.2s ease" }}>
-                  {/* Row 1: Photo thumbnail + Delete button */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <div style={{ width: 50, height: 50, borderRadius: R.sm, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${T.line}` }}>
-                      {record.photo ? <img src={record.photo} alt="Work" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>📷</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => openEdit(record)} style={{ padding: "8px 16px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
-                      <button onClick={() => setDelId(record.id)} style={{ padding: "8px 12px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🗑 Delete</button>
-                    </div>
+                  {/* Row 1: Edit + Delete side by side */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <button onClick={() => openEdit(record)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✏️ Edit</button>
+                    <button onClick={() => setDelId(record.id)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>🗑 Delete</button>
                   </div>
-                  
+
                   {/* Row 2: View Photo + Add Photo */}
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
                     {record.photo && (
                       <button onClick={() => setViewPhoto(record.photo)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.teal500}`, background: T.mintSoft, color: T.teal700, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View Photo</button>
                     )}
                     <label style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      {record.photo ? "🔄 Replace Photo" : "➕ Add Photo"}
+                      {record.photo ? "🔄 Replace" : "➕ Add Photo"}
                       <input type="file" accept="image/*" capture="environment" onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
@@ -1586,7 +1599,15 @@ function Work({ workRecords, setWorkRecords, workNames }) {
       <Sheet open={showSheet} onClose={() => setShowSheet(false)}>
         <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginBottom: 14, fontFamily: THEME.font.money }}>{editId ? "Edit Record" : "New Work Record"}</div>
 
-        <TypeToggle options={[["work", "💼 Work"], ["spend", "💸 Spend"]]} value={form.type} onChange={v => setForm({ ...form, type: v })} colors={{ work: G.primary, spend: G.expense }} />
+        {editId ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "10px 14px", borderRadius: R.sm, background: form.type === "spend" ? T.expenseSoft : T.mintSoft, border: `1.5px solid ${form.type === "spend" ? T.expense : T.teal500}` }}>
+            <span style={{ fontSize: 16 }}>{form.type === "spend" ? "💸" : "💼"}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: form.type === "spend" ? T.expense : T.teal700 }}>{form.type === "spend" ? "Spend Entry" : "Work Entry"}</span>
+            <span style={{ fontSize: 11, color: T.inkSoft, marginLeft: 4 }}>(type locked on edit)</span>
+          </div>
+        ) : (
+          <TypeToggle options={[["work", "💼 Work"], ["spend", "💸 Spend"]]} value={form.type} onChange={v => setForm({ ...form, type: v })} colors={{ work: G.primary, spend: G.expense }} />
+        )}
 
         {form.type === "work" && (
           <>
