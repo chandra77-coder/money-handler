@@ -631,7 +631,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
     if (!editForm.amount || parseFloat(editForm.amount) <= 0) return;
     const catList = editForm.type === "income" ? categories.income : categories.expense;
     const cat = catList.find(c => c.l === editForm.category);
-    setTransactions(prev => prev.map(t => t.id === editTxId ? { ...editForm, id: editTxId, icon: cat?.icon || t.icon, amount: parseFloat(editForm.amount), createdAt: t.createdAt } : t));
+    setTransactions(prev => prev.map(t => t.id === editTxId ? { ...editForm, id: editTxId, icon: cat?.icon || t.icon, amount: parseFloat(editForm.amount), createdAt: t.createdAt, photo: editForm.photo ?? t.photo } : t));
     setShowEditSheet(false);
     setEditTxId(null);
   };
@@ -864,7 +864,23 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
         <FInput value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})}
           type="date" style={{marginBottom:16}}/>
         <FBtn onClick={saveEdit} style={{width:"100%",padding:"15px"}}>Update Transaction</FBtn>
-      </Sheet></div>
+      </Sheet>
+
+      {/* Delete Confirm Modal — Dashboard */}
+      {delTxId && (
+        <div style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(2px)"}}>
+          <div style={{background:T.card,borderRadius:R.xl,padding:"28px 24px",width:"100%",maxWidth:320,textAlign:"center",boxShadow:SH.raised}}>
+            <div style={{fontSize:36,marginBottom:10}}>🗑️</div>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:8,color:T.ink}}>Delete this transaction?</div>
+            <div style={{fontSize:13,color:T.inkSoft,marginBottom:22}}>This will move it to Trash and can be restored later.</div>
+            <div style={{display:"flex",gap:10}}>
+              <FBtn onClick={()=>setDelTxId(null)} outline color={T.inkSoft} style={{flex:1}}>Cancel</FBtn>
+              <FBtn onClick={()=>confirmDeleteTx(delTxId)} bg={G.expense} style={{flex:1}}>Delete</FBtn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -886,12 +902,15 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
     });
   };
 
-  const deleteTx = (id) => {
+  const [delTxId, setDelTxId] = useState(null);
+  const deleteTx = (id) => { setDelTxId(id); };
+  const confirmDeleteTx = (id) => {
     const tx = transactions.find(t => t.id === id);
     if (tx) {
       setTrash(prev => ({ ...prev, transactions: [...prev.transactions, tx] }));
       setTransactions(prev => prev.filter(t => t.id !== id));
     }
+    setDelTxId(null);
   };
 
   const openEdit = (tx) => {
@@ -1306,7 +1325,7 @@ function Loans({ loans, setLoans, setTrash }) {
       <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
         <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Loan":"Add Loan"}</div>
         <TypeToggle options={[["took","🔴 I Took"],["gave","🟢 I Gave"]]} value={form.type}
-          onChange={v=>setForm({...EMPTY_LOAN,type:v})} colors={{took:G.expense,gave:G.income}}/>
+          onChange={v=>{ if (!editId) setForm({...EMPTY_LOAN,type:v}); else setForm({...form,type:v}); }} colors={{took:G.expense,gave:G.income}}/>
         <Label>PERSON'S NAME</Label>
         <FInput value={form.name} onChange={e=>setForm({...form,name:e.target.value})}
           placeholder="e.g. Rahul Sharma" style={{marginBottom:10}}/>
@@ -1522,19 +1541,26 @@ function Work({ workRecords, setWorkRecords, workNames }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{record.customer || record.name || (record.type === "spend" ? "Spend" : "Work Entry")}</div>
                     <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: T.bgSoft, color: T.inkSoft, textTransform: "uppercase" }}>
                       #{record.code}
                     </span>
-                    <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
-                      {record.status}
-                    </span>
+                    {record.type === "work" && (
+                      <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: record.status === "paid" ? T.incomeSoft : record.status === "unpaid" ? T.expenseSoft : T.goldSoft, color: record.status === "paid" ? "#1E8E5A" : record.status === "unpaid" ? T.expense : "#946A1F", textTransform: "uppercase" }}>
+                        {record.status}
+                      </span>
+                    )}
+                    {record.type === "spend" && (
+                      <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: R.pill, background: T.expenseSoft, color: T.expense, textTransform: "uppercase" }}>
+                        spend
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2 }}>{record.name}</div>
                   <div style={{ fontSize: 11, color: "#A8B8B3", marginTop: 1 }}>{record.date} {record.status === "paid" && `· ${record.method}`}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, fontFamily: THEME.font.money }}>{fmt(record.amount)}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: record.type === "spend" ? T.expense : T.ink, fontFamily: THEME.font.money }}>{record.type === "spend" ? "−" : ""}{fmt(record.amount)}</div>
                 </div>
               </div>
 
@@ -1576,7 +1602,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
       {viewPhoto && (
         <div onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <img src={viewPhoto} alt="Work Photo" style={{ maxWidth: "100%", maxHeight: "80%", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
-          <button style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
+          <button onClick={() => setViewPhoto(null)} style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
         </div>
       )}
 
@@ -2040,6 +2066,7 @@ function SettingsSheet({
   notifyEnabled, setNotifyEnabled,
   categories, setCategories,
   workNames, setWorkNames,
+  workRecords, setWorkRecords,
   trash, setTrash,
   onOpenProfile,
   onOpenAccounts,
@@ -2096,9 +2123,10 @@ function SettingsSheet({
 
   const exportBackup = () => {
     const backup = {
-      _app: "my-finance-app", _version: 1, exportedAt: new Date().toISOString(),
+      _app: "my-finance-app", _version: 2, exportedAt: new Date().toISOString(),
       transactions, loans, accounts, openingBalance, declaredAmount,
       goalAmount, manualCheck, upiList, profile, notifyEnabled,
+      categories, workNames, workRecords,
       // PIN intentionally excluded from backup file for safety
     };
     downloadFile(`finance-backup-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
@@ -2122,6 +2150,9 @@ function SettingsSheet({
         if (Array.isArray(data.upiList))      setUpiList(data.upiList);
         if (data.profile)                     setProfile(data.profile);
         if (typeof data.notifyEnabled==="boolean") setNotifyEnabled(data.notifyEnabled);
+        if (data.categories)                  setCategories(data.categories);
+        if (Array.isArray(data.workNames))    setWorkNames(data.workNames);
+        if (Array.isArray(data.workRecords))  setWorkRecords(data.workRecords);
         setBackupMsg({type:"ok", text:"Backup restored successfully."});
       } catch (err) {
         setBackupMsg({type:"err", text:"Couldn't read that file — is it a backup exported from this app?"});
@@ -2356,7 +2387,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 1.8.0", null)}
+        {menuRow("ℹ️","About","Version 2.0.0", null)}
 
       </div>
 
@@ -3058,6 +3089,7 @@ export default function App() {
         notifyEnabled={notifyEnabled} setNotifyEnabled={setNotifyEnabled}
         categories={categories} setCategories={setCategories}
         workNames={workNames} setWorkNames={setWorkNames}
+        workRecords={workRecords} setWorkRecords={setWorkRecords}
         trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
