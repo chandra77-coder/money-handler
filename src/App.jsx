@@ -400,15 +400,25 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
             background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",
             display:"flex",alignItems:"center",gap:5
           }}>
-            {tx.photo ? "🔄 Replace" : "➕ Add Photo"}
-            <input type="file" accept="image/*" capture="environment" 
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                compressImage(file, (compressed) => {
-                  onEdit({ ...tx, photo: compressed });
-                  onClose();
-                });
+                compressImage(file, (compressed) => { onEdit({ ...tx, photo: compressed }); onClose(); });
+              }} style={{display:"none"}}/>
+          </label>
+          <label style={{
+            padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,
+            background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:5
+          }}>
+            🖼️ Gallery
+            <input type="file" accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                compressImage(file, (compressed) => { onEdit({ ...tx, photo: compressed }); onClose(); });
               }} style={{display:"none"}}/>
           </label>
         </div>
@@ -1103,20 +1113,26 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
           placeholder="Add a note…" style={{marginBottom:10}}/>
         
         <Label>PHOTO (OPTIONAL)</Label>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-          <label style={{ width: 48, height: 48, borderRadius: R.sm, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>
-            {form.photo ? "🔄" : "📷"}
-            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
-          </label>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <label style={{ flex: 1, padding: "10px 8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.teal500, cursor: "pointer" }}>
+              📷 Camera
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+            <label style={{ flex: 1, padding: "10px 8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.teal500, cursor: "pointer" }}>
+              🖼️ Gallery
+              <input type="file" accept="image/*" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+          </div>
           {form.photo && (
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
-              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
+                <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+              <div style={{ fontSize: 12, color: T.inkSoft }}>Photo attached. Use buttons above to replace.</div>
             </div>
           )}
-          <div style={{ fontSize: 12, color: T.inkSoft, lineHeight: 1.3 }}>
-            {form.photo ? "Photo attached. Tap icon to replace." : "Tap icon to take/add a photo"}
-          </div>
         </div>
         
         <Label>DATE</Label>
@@ -1572,14 +1588,24 @@ function Work({ workRecords, setWorkRecords, workNames }) {
                     <button onClick={() => setDelId(record.id)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>🗑 Delete</button>
                   </div>
 
-                  {/* Row 2: View Photo + Add Photo */}
-                  <div style={{ display: "flex", gap: 8 }}>
+                  {/* Row 2: View Photo + Camera + Gallery */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {record.photo && (
-                      <button onClick={() => setViewPhoto(record.photo)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.teal500}`, background: T.mintSoft, color: T.teal700, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View Photo</button>
+                      <button onClick={() => setViewPhoto(record.photo)} style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.teal500}`, background: T.mintSoft, color: T.teal700, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View</button>
                     )}
-                    <label style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      {record.photo ? "🔄 Replace" : "➕ Add Photo"}
+                    <label style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      📷 Camera
                       <input type="file" accept="image/*" capture="environment" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        compressImage(file, (compressed) => {
+                          setWorkRecords(prev => prev.map(w => w.id === record.id ? { ...w, photo: compressed } : w));
+                        });
+                      }} style={{ display: "none" }} />
+                    </label>
+                    <label style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      🖼️ Gallery
+                      <input type="file" accept="image/*" onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         compressImage(file, (compressed) => {
@@ -1670,20 +1696,26 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, fontFamily: THEME.font.money }} />
 
         <Label>PHOTO (OPTIONAL)</Label>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-          <label style={{ width: 48, height: 48, borderRadius: R.sm, background: T.bgSoft, border: `1.5px dashed ${T.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>
-            {form.photo ? "🔄" : "📷"}
-            <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
-          </label>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <label style={{ flex: 1, padding: "10px 8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.teal500, cursor: "pointer" }}>
+              📷 Camera
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+            <label style={{ flex: 1, padding: "10px 8px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.teal500, cursor: "pointer" }}>
+              🖼️ Gallery
+              <input type="file" accept="image/*" onChange={handlePhoto} style={{display:"none"}}/>
+            </label>
+          </div>
           {form.photo && (
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
-              <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <img src={form.photo} alt="Preview" style={{ width: 48, height: 48, borderRadius: R.sm, objectFit: "cover", border: `1px solid ${T.teal500}` }} />
+                <button onClick={() => setForm({ ...form, photo: null })} style={{ position: "absolute", top: -6, right: -6, background: T.expense, color: "white", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+              <div style={{ fontSize: 12, color: T.inkSoft }}>Photo attached. Use buttons above to replace.</div>
             </div>
           )}
-          <div style={{ fontSize: 12, color: T.inkSoft, lineHeight: 1.3 }}>
-            {form.photo ? "Photo attached. Tap icon to replace." : "Tap icon to take/add a photo"}
-          </div>
         </div>
 
         <Label>DATE</Label>
