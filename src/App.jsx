@@ -169,41 +169,10 @@ const getSystemTheme = () => {
 };
 
 const THEME = {
-  colors: {
-    bg:           "#1a3a5c",
-    bgSoft:       "#F2F4F8",
-    teal900:      "#13283F",
-    teal800:      "#1a3a5c",
-    teal700:      "#1E3A5F",
-    teal600:      "#234A75",
-    teal500:      "#2D6A9F",
-    mint:         "#7EFFC5",
-    mintSoft:     "#E5F4FF",
-    gold:         "#F5B942",
-    goldSoft:     "#FFF3DD",
-    income:       "#1DB954",
-    incomeSoft:   "#E8FBF0",
-    expense:      "#E53E3E",
-    expenseSoft:  "#FFF0F0",
-    transfer:     "#7B5EA7",
-    transferSoft: "#F3EEFF",
-    ink:          "#1A1A2E",
-    inkSoft:      "#8A93A0",
-    line:         "#E8EDF3",
-    card:         "#FFFFFF",
-    glass:        "rgba(255,255,255,0.13)",
-    glassBorder:  "rgba(255,255,255,0.18)",
-    glassStrong:  "rgba(255,255,255,0.15)",
-  },
-  gradient: {
-    header:  "linear-gradient(135deg,#1a3a5c 0%,#2d6a9f 100%)",
-    primary: "linear-gradient(135deg,#2D6A9F 0%,#1a3a5c 100%)",
-    gold:    "linear-gradient(135deg,#F5B942 0%,#E0A53A 100%)",
-    income:  "linear-gradient(135deg,#1DB954,#15A047)",
-    expense: "linear-gradient(135deg,#E53E3E,#C73333)",
-    transfer:"linear-gradient(135deg,#7B5EA7,#6B4F95)",
-    nav:     "linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.99))",
-  },
+  // colors and gradient are set dynamically at render time via T = currentTheme.colors
+  // These are placeholder defaults (dark theme) — overwritten in App before any render
+  colors: THEMES.dark.colors,
+  gradient: THEMES.dark.gradient,
   shadow: {
     soft:    "0 2px 10px rgba(26,58,92,0.08)",
     card:    "0 2px 12px rgba(26,58,92,0.07)",
@@ -212,9 +181,6 @@ const THEME = {
     nav:     "0 -4px 20px rgba(26,58,92,0.10)",
     glow:    "0 0 0 1px rgba(255,255,255,0.18) inset",
   },
-  // Placeholder for theme colors - will be replaced dynamically
-  colors: THEMES.dark.colors,
-  gradient: THEMES.dark.gradient,
   radius: { sm:10, md:14, lg:18, xl:22, xxl:28, pill:999 },
   font: {
     body: "'Inter', system-ui, sans-serif",
@@ -618,7 +584,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
   const [selectedTx, setSelectedTx] = useState(null);
   const [editTxId, setEditTxId] = useState(null);
   const [showEditSheet, setShowEditSheet] = useState(false);
-  const [editForm, setEditForm] = useState(EMPTY_TX);
+  const [editForm, setEditForm] = useState(makeEmptyTx);
 
   const [delTxId, setDelTxId] = useState(null);
   const deleteTx = (id) => { setDelTxId(id); };
@@ -712,7 +678,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
       <div style={{padding:"0 12px",marginTop:12}}>
 
         {showReminder && (
-          <div style={{background:THEME.colors.goldSoft,borderRadius:R.lg,padding:"12px 14px",
+          <div style={{background:T.goldSoft,borderRadius:R.lg,padding:"12px 14px",
             marginBottom:14,boxShadow:SH.card,display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:20}}>🔔</span>
             <div style={{fontSize:12,color:"#946A1F",fontWeight:600,flex:1}}>
@@ -797,7 +763,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
               </div>
               {!isExact&&(
                 <div style={{marginTop:8,padding:"9px 11px",borderRadius:R.sm,fontSize:12,
-                  background:isMore?THEME.colors.goldSoft:T.expenseSoft,color:isMore?"#946A1F":T.expense}}>
+                  background:isMore?T.goldSoft:T.expenseSoft,color:isMore?"#946A1F":T.expense}}>
                   {isMore
                     ?"You physically have more than the app calculated. You may have missed recording some income."
                     :"You physically have less than the app calculated. You may have missed recording some expense."}
@@ -895,13 +861,14 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
 }
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
-const EMPTY_TX = {type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null};
+const makeEmptyTx = () => ({type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null});
+const EMPTY_TX = makeEmptyTx(); // static fallback; always use makeEmptyTx() for new forms
 
 function Transactions({ transactions, setTransactions, setTrash, accounts, categories }) {
   const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId]       = useState(null);
-  const [form, setForm]           = useState(EMPTY_TX);
+  const [form, setForm]           = useState(makeEmptyTx);
   const [selectedTx, setSelectedTx] = useState(null);
 
   const handlePhoto = (e) => {
@@ -938,30 +905,31 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       entry = {
         type:"transfer",category:"Transfer",icon:"⇄",
         amount:parseFloat(form.amount),note:form.note,date:form.date,
-        account:form.account,toAccount:form.toAccount,method:""
+        account:form.account,toAccount:form.toAccount,method:"",
+        photo: form.photo || null,
       };
     } else {
       if (!form.category || !form.account) return;
       const cat = [...(categories?.income||[]),...(categories?.expense||[])].find(c=>c.l===form.category);
-      entry = {...form, icon:cat?.icon||"💰", amount:parseFloat(form.amount), toAccount:""};
+      entry = {...form, icon:cat?.icon||"💰", amount:parseFloat(form.amount), toAccount:"", photo: form.photo || null};
     }
 
     if (editId) {
-      setTransactions(prev => prev.map(t => t.id === editId ? { ...entry, id: editId, createdAt: t.createdAt } : t));
+      setTransactions(prev => prev.map(t => t.id === editId ? { ...entry, id: editId, createdAt: t.createdAt, photo: entry.photo ?? t.photo } : t));
     } else {
       setTransactions(prev => [{ ...entry, id: now, createdAt: now }, ...prev]);
     }
 
     setShowSheet(false);
     setEditId(null);
-    setForm(EMPTY_TX);
+    setForm(makeEmptyTx());
   };
 
   const handleSearch = (e) => {
     const v = e.target.value;
     setSearch(v);
     if (v.trim().toLowerCase() === "create") {
-      setTimeout(()=>{ setSearch(""); setForm(EMPTY_TX); setShowSheet(true); }, 200);
+      setTimeout(()=>{ setSearch(""); setForm(makeEmptyTx()); setShowSheet(true); }, 200);
     }
   };
 
@@ -1053,7 +1021,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       </div>
 
       {/* FAB */}
-      <button onClick={()=>{setForm(EMPTY_TX);setShowSheet(true);}}
+      <button onClick={()=>{setForm(makeEmptyTx());setShowSheet(true);}}
         onMouseDown={e=>e.currentTarget.style.transform="scale(0.93)"}
         onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
         style={{
@@ -1068,7 +1036,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
         <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Transaction":"Add Transaction"}</div>
         <TypeToggle
           options={[["expense","↓ Expense"],["income","↑ Income"],["transfer","⇄ Transfer"]]}
-          value={form.type} onChange={v=>setForm({...EMPTY_TX,type:v})}
+          value={form.type} onChange={v=>setForm({...makeEmptyTx(),type:v})}
           colors={{expense:G.expense,income:G.income,transfer:G.transfer}}/>
 
         <Label>AMOUNT</Label>
@@ -1162,21 +1130,22 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
 }
 
 // ─── LOANS ────────────────────────────────────────────────────────────────────
-const EMPTY_LOAN = {type:"took",name:"",amount:"",reason:"",date:todayStr(),status:"pending"};
+const makeEmptyLoan = () => ({type:"took",name:"",amount:"",reason:"",date:todayStr(),status:"pending"});
+const EMPTY_LOAN = makeEmptyLoan(); // static fallback
 
 function Loans({ loans, setLoans, setTrash }) {
   const [search, setSearch]       = useState("");
   const [filter, setFilter]       = useState("all");
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId]       = useState(null);
-  const [form, setForm]           = useState(EMPTY_LOAN);
+  const [form, setForm]           = useState(makeEmptyLoan);
   const [delId, setDelId]         = useState(null);
 
   const handleSearch = (e) => {
     const v = e.target.value;
     setSearch(v);
     if (v.trim().toLowerCase()==="create") {
-      setTimeout(()=>{ setSearch(""); setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); },200);
+      setTimeout(()=>{ setSearch(""); setForm(makeEmptyLoan()); setEditId(null); setShowSheet(true); },200);
     }
   };
 
@@ -1192,7 +1161,7 @@ function Loans({ loans, setLoans, setTrash }) {
       return (l.name||"").toLowerCase().includes(q)||(l.reason||"").toLowerCase().includes(q);
     });
 
-  const openAdd  = ()  => { setForm(EMPTY_LOAN); setEditId(null); setShowSheet(true); };
+  const openAdd  = ()  => { setForm(makeEmptyLoan()); setEditId(null); setShowSheet(true); };
   const openEdit = (l) => { setForm({...l,amount:String(l.amount)}); setEditId(l.id); setShowSheet(true); };
 
   const save = () => {
@@ -1271,7 +1240,7 @@ function Loans({ loans, setLoans, setTrash }) {
                 background:avatarColor(loan.name),display:"flex",alignItems:"center",
                 justifyContent:"center",color:"white",fontWeight:800,fontSize:18,
                 boxShadow:"0 3px 8px rgba(0,0,0,0.18)"}}>
-                {loan.name[0].toUpperCase()}
+                {(loan.name||"?")[0].toUpperCase()}
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -1341,7 +1310,7 @@ function Loans({ loans, setLoans, setTrash }) {
       <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
         <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Loan":"Add Loan"}</div>
         <TypeToggle options={[["took","🔴 I Took"],["gave","🟢 I Gave"]]} value={form.type}
-          onChange={v=>{ if (!editId) setForm({...EMPTY_LOAN,type:v}); else setForm({...form,type:v}); }} colors={{took:G.expense,gave:G.income}}/>
+          onChange={v=>{ if (!editId) setForm({...makeEmptyLoan(),type:v}); else setForm({...form,type:v}); }} colors={{took:G.expense,gave:G.income}}/>
         <Label>PERSON'S NAME</Label>
         <FInput value={form.name} onChange={e=>setForm({...form,name:e.target.value})}
           placeholder="e.g. Rahul Sharma" style={{marginBottom:10}}/>
@@ -1382,13 +1351,14 @@ function genWorkCode(existingCodes) {
   return code;
 }
 
-const EMPTY_WORK = { type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null };
+const makeEmptyWork = () => ({ type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null });
+const EMPTY_WORK = makeEmptyWork(); // static fallback
 
 function Work({ workRecords, setWorkRecords, workNames }) {
   const [search, setSearch] = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState(EMPTY_WORK);
+  const [form, setForm] = useState(makeEmptyWork);
   const [delId, setDelId] = useState(null);
   const [viewPhoto, setViewPhoto] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -1401,7 +1371,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         const existingCodes = new Set(workRecords.filter(w => w.code).map(w => w.code));
         const newCode = genWorkCode(existingCodes);
         setSearch("");
-        setForm({ ...EMPTY_WORK, code: newCode });
+        setForm({ ...makeEmptyWork(), code: newCode });
         setEditId(null);
         setShowSheet(true);
       }, 200);
@@ -1411,7 +1381,7 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   const openAdd = () => {
     const existingCodes = new Set(workRecords.filter(w => w.code).map(w => w.code));
     const newCode = genWorkCode(existingCodes);
-    setForm({ ...EMPTY_WORK, code: newCode });
+    setForm({ ...makeEmptyWork(), code: newCode });
     setEditId(null);
     setShowSheet(true);
   };
@@ -2419,7 +2389,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 2.0.0", null)}
+        {menuRow("ℹ️","About","Version 2.3.0", null)}
 
       </div>
 
@@ -3016,9 +2986,9 @@ export default function App() {
   const [upiList,      setUpiList]      = useLS("fm_upi",            SEED_UPI);
   const [profile,      setProfile]      = useLS("fm_profile",        SEED_PROFILE);
   const [notifyEnabled,setNotifyEnabled]= useLS("fm_notify",         false);
-  const [categories,   setCategories]   = useLS("fm_categories",      SEED_CATEGORIES);
-    const [trash,          setTrash]          = useLS("fm_trash", { transactions: [], loans: [], categories: { income: [], expense: [] } });
-  const [workNames,      setWorkNames]      = useLS("fm_work_names", SEED_WORK_NAMES);
+  const [categories,   setCategories]   = useLS("fm_categories",     SEED_CATEGORIES);
+  const [trash,        setTrash]        = useLS("fm_trash",          { transactions: [], loans: [], categories: { income: [], expense: [] } });
+  const [workNames,    setWorkNames]    = useLS("fm_work_names",     SEED_WORK_NAMES);
   const [workRecords,    setWorkRecords]    = useLS("fm_work_records", SEED_WORK_RECORDS);
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
