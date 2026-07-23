@@ -229,7 +229,122 @@ function transactionsToCSV(transactions) {
   return [header, ...rows].map(r=>r.map(csvEscape).join(",")).join("\n");
 }
 
-// ─── LOCAL STORAGE HOOK ───────────────────────────────────────────────────────
+// Mini SVG bar chart (no deps)
+function MiniBarChart({ data, color, height=48 }) {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data.map(d=>d.value), 1);
+  const w = 100 / data.length;
+  return (
+    <svg viewBox={`0 0 100 ${height}`} style={{width:"100%",height}} preserveAspectRatio="none">
+      {data.map((d,i)=>{
+        const barH = Math.max(2, (d.value/max)*height*0.85);
+        return (
+          <g key={i}>
+            <rect x={i*w+w*0.15} y={height-barH} width={w*0.7} height={barH}
+              fill={d.highlight ? color : color+"55"} rx="2"/>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Mini SVG donut chart
+function DonutChart({ slices, size=80 }) {
+  const total = slices.reduce((s,x)=>s+x.value,0);
+  if (total===0) return <div style={{width:size,height:size,borderRadius:"50%",background:"#eee",flexShrink:0}}/>;
+  let angle = -90;
+  const cx=size/2, cy=size/2, r=size*0.35, stroke=size*0.13;
+  const arcs = slices.map(sl=>{
+    const pct = sl.value/total;
+    const a1 = angle, a2 = angle + pct*360;
+    angle = a2;
+    const toRad=d=>d*Math.PI/180;
+    const x1=cx+r*Math.cos(toRad(a1)),y1=cy+r*Math.sin(toRad(a1));
+    const x2=cx+r*Math.cos(toRad(a2)),y2=cy+r*Math.sin(toRad(a2));
+    const large=pct>0.5?1:0;
+    return { d:`M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2}`, color:sl.color, value:sl.value, label:sl.label };
+  });
+  return (
+    <svg width={size} height={size} style={{flexShrink:0}}>
+      {arcs.map((arc,i)=>(
+        <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={stroke} strokeLinecap="butt"/>
+      ))}
+    </svg>
+  );
+}
+
+// Get last N months labels + tx aggregates
+function getLast6Months(transactions) {
+  const months = [];
+  const now = new Date();
+  for (let i=5; i>=0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const label = d.toLocaleDateString("en-IN",{month:"short"});
+    const inc = transactions.filter(t=>t.type==="income" && (t.date||"").startsWith(key)).reduce((s,t)=>s+t.amount,0);
+    const exp = transactions.filter(t=>t.type==="expense" && (t.date||"").startsWith(key)).reduce((s,t)=>s+t.amount,0);
+    months.push({ key, label, income:inc, expense:exp, isCurrentMonth: i===0 });
+  }
+  return months;
+}
+
+// ─── RECURRING TRANSACTIONS ENGINE ──────────────────────────────────────────
+function applyRecurring(recurring, transactions, setTransactions) {
+  // Called on app load. Checks each recurring rule and auto-adds if due.
+  const today = todayStr();
+  const newTxs = [];
+  recurring.forEach(r => {
+    if (!r.active) return;
+    let lastDate = r.lastAdded || r.startDate;
+    let next = getNextDue(lastDate, r.frequency);
+    while (next <= today) {
+      const alreadyExists = transactions.some(t =>
+        t.recurringId === r.id && t.date === next
+      );
+      if (!alreadyExists) {
+        newTxs.push({
+          id: Date.now() + Math.random(),
+          createdAt: Date.now(),
+          recurringId: r.id,
+          type: r.type,
+          category: r.category,
+          icon: r.icon || "🔁",
+          amount: r.amount,
+          note: r.note || `Auto: ${r.category}`,
+          date: next,
+          account: r.account,
+          toAccount: r.toAccount || "",
+          method: r.method || "",
+          photo: null,
+        });
+      }
+      lastDate = next;
+      next = getNextDue(lastDate, r.frequency);
+    }
+  });
+  if (newTxs.length > 0) {
+    setTransactions(prev => [...newTxs, ...prev]);
+  }
+}
+
+function getNextDue(fromDate, frequency) {
+  const d = new Date(fromDate + "T00:00:00");
+  if (frequency === "daily")   d.setDate(d.getDate() + 1);
+  if (frequency === "weekly")  d.setDate(d.getDate() + 7);
+  if (frequency === "monthly") d.setMonth(d.getMonth() + 1);
+  if (frequency === "yearly")  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+const FREQUENCIES = ["daily", "weekly", "monthly", "yearly"];
+const makeEmptyRecurring = () => ({
+  type: "expense", category: "", icon: "🔁", amount: "",
+  note: "", account: "", method: "", frequency: "monthly",
+  startDate: todayStr(), active: true,
+});
+
+
 function useLS(key, defaultVal) {
   const [val, setVal] = useState(() => {
     try {
@@ -773,6 +888,108 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
           );
         })()}
 
+        {/* ── Monthly Cash Flow Chart ── */}
+        {(()=>{
+          const months = getLast6Months(transactions);
+          const hasData = months.some(m=>m.income>0||m.expense>0);
+          if (!hasData) return null;
+          const maxVal = Math.max(...months.map(m=>Math.max(m.income,m.expense)),1);
+          return (
+            <div style={{background:T.card,borderRadius:R.lg,padding:"14px",marginBottom:14,boxShadow:SH.card}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>📈 6-Month Cash Flow</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:6,height:80,marginBottom:8}}>
+                {months.map((m,i)=>{
+                  const incH = Math.max(3,(m.income/maxVal)*72);
+                  const expH = Math.max(3,(m.expense/maxVal)*72);
+                  return (
+                    <div key={m.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{display:"flex",gap:2,alignItems:"flex-end",height:74}}>
+                        <div style={{width:8,height:incH,background:m.isCurrentMonth?T.income:T.income+"77",borderRadius:"3px 3px 0 0"}}/>
+                        <div style={{width:8,height:expH,background:m.isCurrentMonth?T.expense:T.expense+"77",borderRadius:"3px 3px 0 0"}}/>
+                      </div>
+                      <div style={{fontSize:9,color:m.isCurrentMonth?T.ink:T.inkSoft,fontWeight:m.isCurrentMonth?700:400}}>{m.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",gap:16,justifyContent:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.inkSoft}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:T.income}}/> Income
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.inkSoft}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:T.expense}}/> Expense
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Spending by Category ── */}
+        {(()=>{
+          const curMonth = todayStr().slice(0,7);
+          const expThisMonth = transactions.filter(t=>t.type==="expense"&&(t.date||"").startsWith(curMonth));
+          if (expThisMonth.length===0) return null;
+          const catMap = {};
+          expThisMonth.forEach(t=>{ catMap[t.category]=(catMap[t.category]||0)+t.amount; });
+          const sorted = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+          const total = sorted.reduce((s,[,v])=>s+v,0);
+          const PALETTE=["#E53E3E","#3399FF","#F5B942","#1DB954","#9F8AE8","#E67E22"];
+          const slices = sorted.map(([k,v],i)=>({label:k,value:v,color:PALETTE[i%PALETTE.length]}));
+          return (
+            <div style={{background:T.card,borderRadius:R.lg,padding:"14px",marginBottom:14,boxShadow:SH.card}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>🍩 This Month's Spending</div>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div style={{position:"relative"}}>
+                  <DonutChart slices={slices} size={80}/>
+                  <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
+                    <div style={{fontSize:9,color:T.inkSoft,fontWeight:600}}>TOTAL</div>
+                    <div style={{fontSize:11,fontWeight:800,color:T.ink}}>{fmt(total)}</div>
+                  </div>
+                </div>
+                <div style={{flex:1}}>
+                  {slices.map((sl,i)=>(
+                    <div key={sl.label} style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:sl.color,flexShrink:0}}/>
+                      <div style={{fontSize:12,color:T.ink,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sl.label}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:T.ink,fontFamily:THEME.font.money}}>{Math.round(sl.value/total*100)}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Loan Snapshot ── */}
+        {(()=>{
+          const pendingGave = loans.filter(l=>l.type==="gave"&&l.status==="pending");
+          const pendingTook = loans.filter(l=>l.type==="took"&&l.status==="pending");
+          if (pendingGave.length===0&&pendingTook.length===0) return null;
+          const totalGave = pendingGave.reduce((s,l)=>s+l.amount,0);
+          const totalTook = pendingTook.reduce((s,l)=>s+l.amount,0);
+          return (
+            <div style={{background:T.card,borderRadius:R.lg,padding:"14px",marginBottom:14,boxShadow:SH.card}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:12}}>🤝 Loan Snapshot</div>
+              <div style={{display:"flex",gap:10}}>
+                {pendingGave.length>0&&(
+                  <div style={{flex:1,background:T.incomeSoft,borderRadius:R.md,padding:"12px"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#1E8E5A",marginBottom:4}}>🟢 THEY OWE ME</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#1E8E5A",fontFamily:THEME.font.money}}>{fmt(totalGave)}</div>
+                    <div style={{fontSize:11,color:"#1E8E5A",marginTop:2}}>{pendingGave.length} pending</div>
+                  </div>
+                )}
+                {pendingTook.length>0&&(
+                  <div style={{flex:1,background:T.expenseSoft,borderRadius:R.md,padding:"12px"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:T.expense,marginBottom:4}}>🔴 I OWE THEM</div>
+                    <div style={{fontSize:16,fontWeight:800,color:T.expense,fontFamily:THEME.font.money}}>{fmt(totalTook)}</div>
+                    <div style={{fontSize:11,color:T.expense,marginTop:2}}>{pendingTook.length} pending</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Recent Transactions */}
         <div style={{background:T.card,borderRadius:R.lg,padding:"13px",boxShadow:SH.card}}>
           <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>Recent Transactions</div>
@@ -864,12 +1081,14 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
 const makeEmptyTx = () => ({type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null});
 const EMPTY_TX = makeEmptyTx(); // static fallback; always use makeEmptyTx() for new forms
 
-function Transactions({ transactions, setTransactions, setTrash, accounts, categories }) {
+function Transactions({ transactions, setTransactions, setTrash, accounts, categories, recurring, setRecurring }) {
   const [search, setSearch]       = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(makeEmptyTx);
   const [selectedTx, setSelectedTx] = useState(null);
+  const [filterType, setFilterType] = useState("all");   // all | income | expense | transfer
+  const [filterMonth, setFilterMonth] = useState("");     // "" = all, "YYYY-MM" = specific
 
   const handlePhoto = (e) => {
     const file = e.target.files?.[0];
@@ -933,61 +1152,95 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
     }
   };
 
-  const filtered = transactions.filter(t=>{
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (t.category||"").toLowerCase().includes(q)
-      || (t.note||"").toLowerCase().includes(q)
-      || (t.account||"").toLowerCase().includes(q)
-      || (t.toAccount||"").toLowerCase().includes(q);
+  const filtered = sortByDateDesc(transactions).filter(t => {
+    if (filterType !== "all" && t.type !== filterType) return false;
+    if (filterMonth && !(t.date || "").startsWith(filterMonth)) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!(t.category||"").toLowerCase().includes(q)
+        && !(t.note||"").toLowerCase().includes(q)
+        && !(t.account||"").toLowerCase().includes(q)
+        && !(t.toAccount||"").toLowerCase().includes(q)) return false;
+    }
+    return true;
   });
 
-  const grouped = sortByDateDesc(filtered).reduce((acc,t)=>{
-    const lbl = t.date===todayStr()?"Today":t.date===yesterdayStr()?"Yesterday":t.date;
-    (acc[lbl]||(acc[lbl]=[])).push(t);
+  const grouped = filtered.reduce((acc, t) => {
+    const lbl = t.date === todayStr() ? "Today" : t.date === yesterdayStr() ? "Yesterday" : t.date;
+    (acc[lbl] || (acc[lbl] = [])).push(t);
     return acc;
-  },{});
+  }, {});
+
+  const monthOptions = (() => {
+    const opts = [{ value: "", label: "All Months" }];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+      const lbl = d.toLocaleDateString("en-IN",{month:"short",year:"numeric"});
+      opts.push({ value: val, label: lbl });
+    }
+    return opts;
+  })();
 
 
 
-  const accountNames = accounts.map(a=>a.name);
-  const methods = form.type==="income" ? INCOME_METHODS : EXPENSE_METHODS;
-
-  // Calculate today's earning and expenses
+  const accountNames = accounts.map(a => a.name);
+  const methods = form.type === "income" ? INCOME_METHODS : EXPENSE_METHODS;
   const today = todayStr();
-  const todayTransactions = transactions.filter(t => t.date === today);
-  const todayEarning = todayTransactions.filter(t => t.type === "income").reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-  const todayExpenses = todayTransactions.filter(t => t.type === "expense").reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-
-  const txColor = (t) => t.type==="income"?T.income:t.type==="transfer"?"#9F8AE8":T.expense;
-  const txBg    = (t) => t.type==="income"?T.incomeSoft:t.type==="transfer"?T.transferSoft:T.expenseSoft;
-  const txPrefix= (t) => t.type==="income"?"+":t.type==="transfer"?"⇄":"−";
+  const todayInc = transactions.filter(t => t.type==="income" && t.date===today).reduce((s,t)=>s+t.amount,0);
+  const todayExp = transactions.filter(t => t.type==="expense" && t.date===today).reduce((s,t)=>s+t.amount,0);
+  const txColor  = t => t.type==="income"?T.income:t.type==="transfer"?"#9F8AE8":T.expense;
+  const txBg     = t => t.type==="income"?T.incomeSoft:t.type==="transfer"?T.transferSoft:T.expenseSoft;
+  const txPrefix = t => t.type==="income"?"+":t.type==="transfer"?"⇄":"−";
 
   return (
     <div>
       <div style={{background:G.header,padding:"22px 16px 18px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
         <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>{monthYearStr()}</div>
-        <div style={{fontSize:20,fontWeight:700,marginBottom:16,fontFamily:THEME.font.money}}>Transactions</div>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:12,fontFamily:THEME.font.money}}>Transactions</div>
         <SearchBar value={search} onChange={handleSearch} placeholder='Search or type "create"…'/>
       </div>
 
       <div style={{padding:"10px 12px"}}>
-        {/* Today's Summary Cards */}
-        <div style={{display:"flex",gap:10,marginBottom:14}}>
-          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.income}`}}>
-            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TODAY EARNING</div>
-            <div style={{fontSize:16,fontWeight:800,color:T.income,fontFamily:THEME.font.money}}>{fmt(todayEarning)}</div>
+        {/* Today summary */}
+        <div style={{display:"flex",gap:10,marginBottom:12}}>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"12px",boxShadow:SH.card,borderTop:`3px solid ${T.income}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:3,fontWeight:600}}>TODAY IN</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.income,fontFamily:THEME.font.money}}>{fmt(todayInc)}</div>
           </div>
-          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"14px",boxShadow:SH.card,borderTop:`3px solid ${T.expense}`}}>
-            <div style={{fontSize:10,color:T.inkSoft,marginBottom:4,fontWeight:600}}>TODAY EXPENSES</div>
-            <div style={{fontSize:16,fontWeight:800,color:T.expense,fontFamily:THEME.font.money}}>{fmt(todayExpenses)}</div>
+          <div style={{flex:1,background:T.card,borderRadius:R.md,padding:"12px",boxShadow:SH.card,borderTop:`3px solid ${T.expense}`}}>
+            <div style={{fontSize:10,color:T.inkSoft,marginBottom:3,fontWeight:600}}>TODAY OUT</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.expense,fontFamily:THEME.font.money}}>{fmt(todayExp)}</div>
           </div>
+        </div>
+
+        {/* Filter bar */}
+        <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
+          {[["all","All"],["income","↑ In"],["expense","↓ Out"],["transfer","⇄"]].map(([v,lbl])=>(
+            <button key={v} onClick={()=>setFilterType(v)} style={{
+              flexShrink:0,padding:"7px 12px",borderRadius:R.pill,
+              border:`1.5px solid ${filterType===v?T.teal500:T.line}`,
+              background:filterType===v?T.mintSoft:T.card,
+              color:filterType===v?T.teal700:T.inkSoft,
+              fontSize:12,fontWeight:700,cursor:"pointer"
+            }}>{lbl}</button>
+          ))}
+          <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{
+            flexShrink:0,padding:"7px 10px",borderRadius:R.pill,
+            border:`1.5px solid ${filterMonth?T.teal500:T.line}`,
+            background:filterMonth?T.mintSoft:T.card,
+            color:filterMonth?T.teal700:T.inkSoft,
+            fontSize:12,fontWeight:700,cursor:"pointer",outline:"none"
+          }}>
+            {monthOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
 
         {Object.keys(grouped).length===0&&(
           <div style={{textAlign:"center",padding:"40px 0",color:"#9FB3AD"}}>
             <div style={{fontSize:36,marginBottom:8}}>🔍</div>
-            <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{search?"No results found":"No transactions yet"}</div>
+            <div style={{fontSize:14,fontWeight:600,color:T.ink}}>{search||filterType!=="all"||filterMonth?"No results":"No transactions yet"}</div>
             <div style={{fontSize:12,marginTop:4}}>Tap + or type "create" to add one</div>
           </div>
         )}
@@ -1001,12 +1254,16 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
                   <div style={{width:42,height:42,borderRadius:R.sm,background:txBg(t),
                     display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{t.icon}</div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <div style={{fontSize:14,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}
+                      </div>
+                      {t.recurringId&&<span style={{fontSize:9,background:T.mintSoft,color:T.teal700,borderRadius:R.pill,padding:"2px 6px",fontWeight:700,flexShrink:0}}>🔁</span>}
+                      {t.photo&&<span style={{fontSize:10,flexShrink:0}}>📸</span>}
                     </div>
                     <div style={{fontSize:11,color:T.inkSoft}}>
                       {t.type==="transfer"?"Transfer":`${t.account}${t.method?" · "+t.method:""}`}
-                      {fmtTime(t.createdAt) ? ` · ${fmtTime(t.createdAt)}` : ""}
+                      {fmtTime(t.createdAt)?` · ${fmtTime(t.createdAt)}`:""}
                     </div>
                     {t.note&&t.type!=="transfer"&&<div style={{fontSize:11,color:"#A8B8B3"}}>{t.note}</div>}
                   </div>
@@ -1130,8 +1387,8 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
 }
 
 // ─── LOANS ────────────────────────────────────────────────────────────────────
-const makeEmptyLoan = () => ({type:"took",name:"",amount:"",reason:"",date:todayStr(),status:"pending"});
-const EMPTY_LOAN = makeEmptyLoan(); // static fallback
+const makeEmptyLoan = () => ({ type:"took", name:"", amount:"", reason:"", date:todayStr(), dueDate:"", status:"pending", payments:[] });
+const EMPTY_LOAN = makeEmptyLoan();
 
 function Loans({ loans, setLoans, setTrash }) {
   const [search, setSearch]       = useState("");
@@ -1140,6 +1397,8 @@ function Loans({ loans, setLoans, setTrash }) {
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(makeEmptyLoan);
   const [delId, setDelId]         = useState(null);
+  const [payLoanId, setPayLoanId] = useState(null); // partial payment
+  const [payAmount, setPayAmount] = useState("");
 
   const handleSearch = (e) => {
     const v = e.target.value;
@@ -1166,11 +1425,26 @@ function Loans({ loans, setLoans, setTrash }) {
 
   const save = () => {
     if (!form.name||!form.amount||parseFloat(form.amount)<=0) return;
-    const entry = {...form, amount:parseFloat(form.amount)};
+    const entry = {...form, amount:parseFloat(form.amount), payments: form.payments||[]};
     if (editId) setLoans(prev=>prev.map(l=>l.id===editId?{...entry,id:editId}:l));
     else        setLoans(prev=>[{...entry,id:Date.now()},...prev]);
     setShowSheet(false); setEditId(null);
   };
+
+  const addPayment = (loanId) => {
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) return;
+    setLoans(prev => prev.map(l => {
+      if (l.id !== loanId) return l;
+      const payments = [...(l.payments||[]), { id: Date.now(), amount: amt, date: todayStr() }];
+      const paid = payments.reduce((s,p)=>s+p.amount, 0);
+      const status = paid >= l.amount ? "returned" : "pending";
+      return { ...l, payments, status };
+    }));
+    setPayAmount("");
+    setPayLoanId(null);
+  };
+
 
   const toggleStatus = (id) =>
     setLoans(prev=>prev.map(l=>l.id===id?{...l,status:l.status==="pending"?"returned":"pending"}:l));
@@ -1230,10 +1504,16 @@ function Loans({ loans, setLoans, setTrash }) {
           </div>
         )}
 
-        {visible.map(loan=>(
+        {visible.map(loan=>{
+          const payments = loan.payments||[];
+          const paidAmt  = payments.reduce((s,p)=>s+p.amount,0);
+          const remaining= Math.max(0, loan.amount - paidAmt);
+          const paidPct  = Math.min(100, loan.amount>0?(paidAmt/loan.amount)*100:0);
+          const isOverdue= loan.dueDate && loan.dueDate < todayStr() && loan.status==="pending";
+          return (
           <div key={loan.id} style={{background:T.card,borderRadius:R.lg,padding:"10px 12px",marginBottom:12,
             boxShadow:SH.card,
-            borderLeft:`4px solid ${loan.type==="took"?T.expense:T.income}`,
+            borderLeft:`4px solid ${isOverdue?"#E53E3E":loan.type==="took"?T.expense:T.income}`,
             opacity:loan.status==="returned"?.65:1}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:46,height:46,borderRadius:"50%",flexShrink:0,
@@ -1246,38 +1526,60 @@ function Loans({ loans, setLoans, setTrash }) {
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                   <div style={{fontSize:15,fontWeight:700,color:T.ink}}>{loan.name}</div>
                   <span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:R.pill,
-                    background:loan.status==="returned"?T.incomeSoft:T.goldSoft,
-                    color:loan.status==="returned"?"#1E8E5A":"#946A1F"}}>
-                    {loan.status==="returned"?"✓ Settled":"Pending"}
+                    background:loan.status==="returned"?T.incomeSoft:isOverdue?T.expenseSoft:T.goldSoft,
+                    color:loan.status==="returned"?"#1E8E5A":isOverdue?T.expense:"#946A1F"}}>
+                    {loan.status==="returned"?"✓ Settled":isOverdue?"⚠️ Overdue":"Pending"}
                   </span>
                 </div>
                 <div style={{fontSize:12,color:T.inkSoft,marginTop:2}}>{loan.reason||"—"}</div>
-                <div style={{fontSize:11,color:"#A8B8B3",marginTop:1}}>{loan.date}</div>
+                <div style={{fontSize:11,color:"#A8B8B3",marginTop:1}}>
+                  {loan.date}{loan.dueDate?` · Due: ${loan.dueDate}`:""}
+                </div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{fontSize:17,fontWeight:800,color:loan.type==="took"?T.expense:T.income,fontFamily:THEME.font.money}}>
                   {loan.type==="took"?"−":"+"}{fmt(loan.amount)}
                 </div>
-                <div style={{fontSize:11,color:"#A8B8B3",marginTop:2}}>{loan.type==="took"?"I owe":"They owe"}</div>
+                {paidAmt>0&&<div style={{fontSize:11,color:T.inkSoft,marginTop:1}}>Paid: {fmt(paidAmt)}</div>}
               </div>
             </div>
-            <div style={{display:"flex",gap:8,marginTop:12,paddingTop:10,borderTop:`1px solid ${T.line}`}}>
-              <button onClick={()=>toggleStatus(loan.id)} style={{flex:1,padding:"9px 0",borderRadius:R.sm,
-                border:"1.5px solid",cursor:"pointer",fontFamily:THEME.font.body,fontWeight:700,fontSize:12,
+
+            {/* Partial payment progress bar */}
+            {paidAmt>0&&loan.status!=="returned"&&(
+              <div style={{margin:"10px 0 4px"}}>
+                <div style={{height:5,borderRadius:R.pill,background:T.bgSoft,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${paidPct}%`,background:T.income,borderRadius:R.pill,transition:"width .3s"}}/>
+                </div>
+                <div style={{fontSize:10,color:T.inkSoft,marginTop:3}}>
+                  {fmt(paidAmt)} paid · {fmt(remaining)} remaining
+                </div>
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:8,marginTop:12,paddingTop:10,borderTop:`1px solid ${T.line}`,flexWrap:"wrap"}}>
+              <button onClick={()=>toggleStatus(loan.id)} style={{flex:1,minWidth:80,padding:"9px 0",borderRadius:R.sm,
+                border:"1.5px solid",cursor:"pointer",fontFamily:THEME.font.body,fontWeight:700,fontSize:11,
                 borderColor:loan.status==="returned"?T.line:T.income,
                 background:loan.status==="returned"?T.bgSoft:T.incomeSoft,
                 color:loan.status==="returned"?T.inkSoft:"#1E8E5A"}}>
-                {loan.status==="returned"?"↩ Pending":"✓ Settled"}
+                {loan.status==="returned"?"↩ Pending":"✓ Settle"}
               </button>
-              <button onClick={()=>openEdit(loan)} style={{padding:"9px 14px",borderRadius:R.sm,
+              {loan.status!=="returned"&&(
+                <button onClick={()=>{setPayLoanId(loan.id);setPayAmount("");}} style={{flex:1,minWidth:80,padding:"9px 0",borderRadius:R.sm,
+                  border:`1.5px solid ${T.teal500}`,background:T.mintSoft,color:T.teal700,
+                  fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>
+                  💰 Pay Part
+                </button>
+              )}
+              <button onClick={()=>openEdit(loan)} style={{padding:"9px 12px",borderRadius:R.sm,
                 border:`1.5px solid ${T.line}`,background:"#F0F6FF",color:T.teal500,
-                fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>✏️ Edit</button>
-              <button onClick={()=>setDelId(loan.id)} style={{padding:"9px 14px",borderRadius:R.sm,
+                fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>✏️</button>
+              <button onClick={()=>setDelId(loan.id)} style={{padding:"9px 12px",borderRadius:R.sm,
                 border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,
-                fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>🗑</button>
+                fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:THEME.font.body}}>🗑</button>
             </div>
           </div>
-        ))}
+        );})}
       </div>
 
       {/* FAB */}
@@ -1306,6 +1608,41 @@ function Loans({ loans, setLoans, setTrash }) {
         </div>
       )}
 
+      {/* Partial payment modal */}
+      {payLoanId && (()=>{
+        const loan = loans.find(l=>l.id===payLoanId);
+        if (!loan) return null;
+        const paid = (loan.payments||[]).reduce((s,p)=>s+p.amount,0);
+        const remaining = loan.amount - paid;
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:400,
+            display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(2px)"}}>
+            <div style={{background:T.card,borderRadius:R.xl,padding:"24px",width:"100%",maxWidth:340,boxShadow:SH.raised}}>
+              <div style={{fontSize:15,fontWeight:800,color:T.ink,marginBottom:4}}>💰 Record Payment</div>
+              <div style={{fontSize:12,color:T.inkSoft,marginBottom:14}}>
+                {loan.name} · Remaining: {fmt(Math.max(0,remaining))}
+              </div>
+              <FInput value={payAmount} onChange={e=>setPayAmount(e.target.value)}
+                placeholder="₹ amount paid" type="number"
+                style={{fontSize:18,fontWeight:700,marginBottom:14,fontFamily:THEME.font.money}}/>
+              {/* Quick fill buttons */}
+              <div style={{display:"flex",gap:6,marginBottom:14}}>
+                {[remaining*0.25, remaining*0.5, remaining].map((v,i)=>(
+                  <button key={i} onClick={()=>setPayAmount(String(Math.round(v)))} style={{
+                    flex:1,padding:"8px 4px",borderRadius:R.sm,border:`1px solid ${T.line}`,
+                    background:T.bgSoft,color:T.teal700,fontSize:11,fontWeight:700,cursor:"pointer"
+                  }}>{["25%","50%","Full"][i]}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <FBtn onClick={()=>{setPayLoanId(null);setPayAmount("");}} outline color={T.inkSoft} style={{flex:1}}>Cancel</FBtn>
+                <FBtn onClick={()=>addPayment(payLoanId)} style={{flex:1}}>Save</FBtn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Add/Edit Sheet */}
       <Sheet open={showSheet} onClose={()=>setShowSheet(false)}>
         <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME.font.money}}>{editId?"Edit Loan":"Add Loan"}</div>
@@ -1322,6 +1659,9 @@ function Loans({ loans, setLoans, setTrash }) {
           placeholder="e.g. Medical, Travel…" style={{marginBottom:10}}/>
         <Label>DATE</Label>
         <FInput value={form.date} onChange={e=>setForm({...form,date:e.target.value})}
+          type="date" style={{marginBottom:10}}/>
+        <Label>DUE DATE (OPTIONAL)</Label>
+        <FInput value={form.dueDate||""} onChange={e=>setForm({...form,dueDate:e.target.value})}
           type="date" style={{marginBottom:12}}/>
         <Label>STATUS</Label>
         <div style={{display:"flex",gap:8,marginBottom:18}}>
@@ -1338,6 +1678,7 @@ function Loans({ loans, setLoans, setTrash }) {
     </div>
   );
 }
+
 
 // ─── WORK COMPONENT ───────────────────────────────────────────────────────────
 function genWorkCode(existingCodes) {
@@ -2053,6 +2394,80 @@ function UpiManager({ upiList, setUpiList }) {
   );
 }
 
+// ─── RECURRING MANAGER ────────────────────────────────────────────────────────
+function RecurringManager({ recurring, setRecurring, accounts, categories }) {
+  const [showSheet, setShowSheet] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(makeEmptyRecurring);
+
+  const openAdd  = () => { setForm(makeEmptyRecurring()); setEditId(null); setShowSheet(true); };
+  const openEdit = (r) => { setForm({ ...r, amount: String(r.amount) }); setEditId(r.id); setShowSheet(true); };
+
+  const save = () => {
+    if (!form.category || !form.account || !form.amount || parseFloat(form.amount) <= 0) return;
+    const catList = form.type === "income" ? categories.income : categories.expense;
+    const cat = catList.find(c => c.l === form.category);
+    const entry = { ...form, amount: parseFloat(form.amount), icon: cat?.icon || "🔁", lastAdded: null };
+    if (editId) {
+      setRecurring(prev => prev.map(r => r.id === editId ? { ...entry, id: editId } : r));
+    } else {
+      setRecurring(prev => [{ ...entry, id: Date.now() }, ...prev]);
+    }
+    setShowSheet(false); setEditId(null);
+  };
+
+  const toggle = (id) => setRecurring(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
+  const remove = (id) => setRecurring(prev => prev.filter(r => r.id !== id));
+
+  return (
+    <div style={{ padding: "8px 0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>🔁 Recurring Transactions</div>
+        <button onClick={openAdd} style={{ padding: "7px 14px", borderRadius: R.pill, background: G.primary, color: "white", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Add</button>
+      </div>
+      {recurring.length === 0 && (
+        <div style={{ textAlign: "center", color: T.inkSoft, padding: "20px 0", fontSize: 12 }}>No recurring transactions. Add salary, rent, subscriptions…</div>
+      )}
+      {recurring.map(r => (
+        <div key={r.id} style={{ background: T.card, borderRadius: R.md, padding: "10px 12px", marginBottom: 8, boxShadow: SH.card, opacity: r.active ? 1 : 0.55 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: R.sm, background: r.type === "income" ? T.incomeSoft : T.expenseSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{r.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{r.category}</div>
+              <div style={{ fontSize: 11, color: T.inkSoft }}>{r.frequency} · {r.account} · {fmt(r.amount)}</div>
+            </div>
+            <ToggleSwitch on={r.active} onChange={() => toggle(r.id)} />
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button onClick={() => openEdit(r)} style={{ flex: 1, padding: "7px", borderRadius: R.sm, border: `1px solid ${T.line}`, background: T.bgSoft, color: T.teal500, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
+            <button onClick={() => remove(r.id)} style={{ flex: 1, padding: "7px", borderRadius: R.sm, border: "1px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>🗑 Delete</button>
+          </div>
+        </div>
+      ))}
+
+      <Sheet open={showSheet} onClose={() => setShowSheet(false)}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, marginBottom: 14 }}>{editId ? "Edit Recurring" : "New Recurring"}</div>
+        <TypeToggle options={[["expense", "↓ Expense"], ["income", "↑ Income"]]} value={form.type}
+          onChange={v => setForm({ ...makeEmptyRecurring(), type: v })} colors={{ expense: G.expense, income: G.income }} />
+        <Label>CATEGORY</Label>
+        <ChipRow items={categories?.[form.type] || []} selected={form.category}
+          onSelect={v => { const cat = (categories?.[form.type] || []).find(c => c.l === v); setForm({ ...form, category: v, icon: cat?.icon || "🔁" }); }} />
+        <Label>AMOUNT</Label>
+        <FInput value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="₹ 0" type="number" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }} />
+        <Label>ACCOUNT</Label>
+        <ChipRow items={accounts.map(a => a.name)} selected={form.account} onSelect={v => setForm({ ...form, account: v })} />
+        <Label>FREQUENCY</Label>
+        <ChipRow items={FREQUENCIES} selected={form.frequency} onSelect={v => setForm({ ...form, frequency: v })} />
+        <Label>START DATE</Label>
+        <FInput value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} type="date" style={{ marginBottom: 10 }} />
+        <Label>NOTE (OPTIONAL)</Label>
+        <FInput value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="e.g. Monthly salary" style={{ marginBottom: 16 }} />
+        <FBtn onClick={save} style={{ width: "100%", padding: "14px" }}>{editId ? "Update" : "Save Recurring"}</FBtn>
+      </Sheet>
+    </div>
+  );
+}
+
 // ─── SETTINGS (bottom sheet, opened from Home gear icon) ──────────────────────
 function SettingsSheet({
   open, onClose,
@@ -2070,6 +2485,7 @@ function SettingsSheet({
   workNames, setWorkNames,
   workRecords, setWorkRecords,
   trash, setTrash,
+  recurring, setRecurring,
   onOpenProfile,
   onOpenAccounts,
   profile, setProfile,
@@ -2241,6 +2657,14 @@ function SettingsSheet({
           `${accounts.length} account${accounts.length!==1?"s":""} · opening, declared, goal`,
           null, ()=>onOpenAccounts())}
 
+        {/* ── RECURRING TRANSACTIONS ── */}
+        {menuRow("🔁","Recurring Transactions",`Auto-add salary, rent, bills`, "recurring")}
+        {section==="recurring" && (
+          <div onClick={e=>e.stopPropagation()}>
+            <RecurringManager recurring={recurring||[]} setRecurring={setRecurring} accounts={accounts} categories={categories}/>
+          </div>
+        )}
+
         {/* ── UPI MANAGEMENT ── */}
         {menuRow("📱","UPI IDs",`${upiList.length} saved`, "upi")}
         {section==="upi" && (
@@ -2389,7 +2813,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 2.3.0", null)}
+        {menuRow("ℹ️","About","Version 2.4.0", null)}
 
       </div>
 
@@ -2990,7 +3414,15 @@ export default function App() {
   const [trash,        setTrash]        = useLS("fm_trash",          { transactions: [], loans: [], categories: { income: [], expense: [] } });
   const [workNames,    setWorkNames]    = useLS("fm_work_names",     SEED_WORK_NAMES);
   const [workRecords,    setWorkRecords]    = useLS("fm_work_records", SEED_WORK_RECORDS);
+  const [recurring,      setRecurring]      = useLS("fm_recurring",    []);
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
+
+  // Apply recurring transactions on load
+  useEffect(() => {
+    if (recurring && recurring.length > 0) {
+      applyRecurring(recurring, transactions, setTransactions);
+    }
+  }, []); // eslint-disable-line
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
   const [showAccounts, setShowAccounts] = useState(false);
@@ -3063,7 +3495,9 @@ export default function App() {
         manualCheck={manualCheck} notifyEnabled={notifyEnabled} onOpenSettings={()=>setSettingsOpen(true)}/>}
 
       {tab==="transactions" && <Transactions
-        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash} accounts={accounts} categories={categories}/>}
+        transactions={transactions} setTransactions={setTransactions} setTrash={setTrash}
+        accounts={accounts} categories={categories}
+        recurring={recurring} setRecurring={setRecurring}/>}
 
       {tab==="loans"        && <Loans loans={loans} setLoans={setLoans} setTrash={setTrash}/>}
 
@@ -3092,6 +3526,7 @@ export default function App() {
         categories={categories} setCategories={setCategories}
         workNames={workNames} setWorkNames={setWorkNames}
         workRecords={workRecords} setWorkRecords={setWorkRecords}
+        recurring={recurring} setRecurring={setRecurring}
         trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
