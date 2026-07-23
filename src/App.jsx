@@ -2109,6 +2109,7 @@ function SettingsSheet({
   categories, setCategories,
   workNames, setWorkNames,
   workRecords, setWorkRecords,
+  archive, setArchive,
   trash, setTrash,
   onOpenProfile,
   onOpenAccounts,
@@ -2168,7 +2169,7 @@ function SettingsSheet({
       _app: "my-finance-app", _version: 2, exportedAt: new Date().toISOString(),
       transactions, loans, accounts, openingBalance, declaredAmount,
       goalAmount, manualCheck, upiList, profile, notifyEnabled,
-      categories, workNames, workRecords,
+      categories, workNames, workRecords, archive,
       // PIN intentionally excluded from backup file for safety
     };
     downloadFile(`finance-backup-${todayStr()}.json`, JSON.stringify(backup, null, 2), "application/json");
@@ -2195,6 +2196,7 @@ function SettingsSheet({
         if (data.categories)                  setCategories(data.categories);
         if (Array.isArray(data.workNames))    setWorkNames(data.workNames);
         if (Array.isArray(data.workRecords))  setWorkRecords(data.workRecords);
+        if (data.archive && typeof data.archive==="object") setArchive(data.archive);
         setBackupMsg({type:"ok", text:"Backup restored successfully."});
       } catch (err) {
         setBackupMsg({type:"err", text:"Couldn't read that file — is it a backup exported from this app?"});
@@ -3012,6 +3014,132 @@ function AccountsScreen({ accounts, setAccounts, transactions, setTransactions, 
 }
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
+
+// ─── ARCHIVE ──────────────────────────────────────────────────────────────────
+function Archive({ archive, onBack }) {
+  const months = Object.keys(archive).sort((a,b)=>b.localeCompare(a));
+  const [selected, setSelected] = useState(null);
+  const [selectedTx, setSelectedTx] = useState(null);
+
+  if (selected) {
+    const txns = archive[selected] || [];
+    const income  = txns.filter(t=>t.type==="income").reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+    const expense = txns.filter(t=>t.type==="expense").reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+    const net     = income - expense;
+    const sorted  = sortByDateDesc(txns);
+
+    // Running balance within this month (oldest→newest)
+    const balanceMap = (() => {
+      const s = [...txns].sort((a,b)=>(a.date||"").localeCompare(b.date||"")||a.id-b.id);
+      let running = 0;
+      const map = {};
+      s.forEach(t => {
+        if (t.type==="income")  running += parseFloat(t.amount)||0;
+        else if (t.type==="expense") running -= parseFloat(t.amount)||0;
+        map[t.id] = running;
+      });
+      return map;
+    })();
+
+    const [d, m] = selected.split("-");
+    const label = new Date(parseInt(d), parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});
+
+    return (
+      <div style={{fontFamily:THEME.font.body,background:T.bgSoft,minHeight:"100vh",maxWidth:420,margin:"0 auto",paddingBottom:80,overflowX:"hidden"}}>
+        {/* Header */}
+        <div style={{background:G.header,padding:"22px 16px 28px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
+          <button onClick={()=>setSelected(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:R.sm,padding:"6px 14px",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14}}>← Back</button>
+          <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600,marginBottom:4}}>ARCHIVE</div>
+          <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>{label}</div>
+          {/* Stats row */}
+          <div style={{display:"flex",gap:10}}>
+            <div style={{flex:1,background:"rgba(255,255,255,0.12)",borderRadius:R.lg,padding:"12px 14px"}}>
+              <div style={{fontSize:10,opacity:.7,fontWeight:600,marginBottom:4}}>INCOME</div>
+              <div style={{fontSize:16,fontWeight:800,color:"#6EE7B7",fontFamily:THEME.font.money}}>+{fmt(income)}</div>
+            </div>
+            <div style={{flex:1,background:"rgba(255,255,255,0.12)",borderRadius:R.lg,padding:"12px 14px"}}>
+              <div style={{fontSize:10,opacity:.7,fontWeight:600,marginBottom:4}}>EXPENSE</div>
+              <div style={{fontSize:16,fontWeight:800,color:"#FCA5A5",fontFamily:THEME.font.money}}>−{fmt(expense)}</div>
+            </div>
+            <div style={{flex:1,background:"rgba(255,255,255,0.12)",borderRadius:R.lg,padding:"12px 14px"}}>
+              <div style={{fontSize:10,opacity:.7,fontWeight:600,marginBottom:4}}>NET</div>
+              <div style={{fontSize:16,fontWeight:800,color:net>=0?"#6EE7B7":"#FCA5A5",fontFamily:THEME.font.money}}>{net>=0?"+":""}{fmt(net)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{padding:"16px 16px 0"}}>
+          <div style={{fontSize:13,color:T.inkSoft,marginBottom:12}}>{txns.length} transaction{txns.length!==1?"s":""}</div>
+          {sorted.map(t => {
+            const color  = t.type==="income" ? T.income : t.type==="transfer" ? "#9F8AE8" : T.expense;
+            const bg     = t.type==="income" ? T.incomeSoft : t.type==="transfer" ? T.transferSoft : T.expenseSoft;
+            const prefix = t.type==="income" ? "+" : t.type==="transfer" ? "⇄" : "−";
+            return (
+              <div key={t.id} onClick={()=>setSelectedTx(t)} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 0",borderBottom:`1px solid ${T.line}`,cursor:"pointer"}}>
+                <div style={{width:40,height:40,borderRadius:R.md,background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}</div>
+                  <div style={{fontSize:12,color:T.inkSoft}}>{fmtDateLong(t.date)}{t.note?` · ${t.note}`:""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color,fontFamily:THEME.font.money}}>{prefix}{fmt(t.amount)}</div>
+                  <div style={{fontSize:10,color:T.inkSoft}}>Bal: {fmt(balanceMap[t.id])}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Transaction detail sheet (read-only, no edit/delete in archive) */}
+        <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} balanceAfter={selectedTx?balanceMap[selectedTx.id]:undefined}/>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{fontFamily:THEME.font.body,background:T.bgSoft,minHeight:"100vh",maxWidth:420,margin:"0 auto",overflowX:"hidden"}}>
+      <div style={{background:G.header,padding:"22px 16px 28px",color:"white",borderRadius:`0 0 ${R.xl}px ${R.xl}px`,boxShadow:SH.card}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:R.sm,padding:"6px 14px",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14}}>← Back</button>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600,marginBottom:4}}>MONTHLY</div>
+        <div style={{fontSize:22,fontWeight:800}}>Archive</div>
+        <div style={{fontSize:13,opacity:.7,marginTop:4}}>Past months — all transactions stored safely</div>
+      </div>
+
+      <div style={{padding:"16px"}}>
+        {months.length === 0 ? (
+          <div style={{textAlign:"center",padding:"60px 20px",color:T.inkSoft}}>
+            <div style={{fontSize:40,marginBottom:12}}>📦</div>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>No archived months yet</div>
+            <div style={{fontSize:13}}>Past months will appear here automatically when a new month starts.</div>
+          </div>
+        ) : months.map(key => {
+          const txns    = archive[key] || [];
+          const income  = txns.filter(t=>t.type==="income").reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+          const expense = txns.filter(t=>t.type==="expense").reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+          const net     = income - expense;
+          const [yr, mo] = key.split("-");
+          const label = new Date(parseInt(yr), parseInt(mo)-1).toLocaleString("default",{month:"long",year:"numeric"});
+          return (
+            <div key={key} onClick={()=>setSelected(key)} style={{background:T.card,borderRadius:R.xl,padding:"16px 18px",marginBottom:12,boxShadow:SH.card,cursor:"pointer",border:`1px solid ${T.line}`,display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:46,height:46,borderRadius:R.lg,background:T.mintSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📅</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:15,fontWeight:800,color:T.ink,marginBottom:3}}>{label}</div>
+                <div style={{fontSize:12,color:T.inkSoft}}>{txns.length} transaction{txns.length!==1?"s":""}</div>
+                <div style={{display:"flex",gap:10,marginTop:6}}>
+                  <span style={{fontSize:11,fontWeight:700,color:T.income}}>+{fmt(income)}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:T.expense}}>−{fmt(expense)}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:net>=0?T.income:T.expense}}>{net>=0?"▲":"▼"} {fmt(Math.abs(net))}</span>
+                </div>
+              </div>
+              <div style={{fontSize:18,color:T.inkSoft}}>›</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,          setTab]          = useState("dashboard");
   const [transactions, setTransactions] = useLS("fm_transactions",  SEED_TX);
@@ -3030,6 +3158,7 @@ export default function App() {
     const [trash,          setTrash]          = useLS("fm_trash", { transactions: [], loans: [], categories: { income: [], expense: [] } });
   const [workNames,      setWorkNames]      = useLS("fm_work_names", SEED_WORK_NAMES);
   const [workRecords,    setWorkRecords]    = useLS("fm_work_records", SEED_WORK_RECORDS);
+  const [archive,        setArchive]        = useLS("fm_archive", {});
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -3041,7 +3170,26 @@ export default function App() {
   T = currentTheme.colors;
   G = currentTheme.gradient;
 
+  const [showArchive, setShowArchive] = useState(false);
+
   useEffect(()=>{ if (!pinEnabled) setUnlocked(true); },[pinEnabled]);
+
+  // Auto-archive: on mount and whenever transactions change, move past-month txns to archive
+  useEffect(() => {
+    const currentMonth = todayStr().slice(0, 7); // "YYYY-MM"
+    const pastTxns = transactions.filter(t => (t.date || "").slice(0, 7) < currentMonth);
+    if (pastTxns.length === 0) return;
+    const newArchive = { ...archive };
+    pastTxns.forEach(t => {
+      const month = (t.date || "").slice(0, 7);
+      if (!newArchive[month]) newArchive[month] = [];
+      if (!newArchive[month].find(a => a.id === t.id)) {
+        newArchive[month] = [...newArchive[month], t];
+      }
+    });
+    setArchive(newArchive);
+    setTransactions(prev => prev.filter(t => (t.date || "").slice(0, 7) >= currentMonth));
+  }, []);
 
   // Listen to system theme changes if system theme is selected
   useEffect(() => {
@@ -3069,6 +3217,15 @@ export default function App() {
     );
   }
 
+  // Archive screen is a full-screen overlay
+  if (showArchive) {
+    return (
+      <div style={{fontFamily:THEME.font.body,background:T.bgSoft,minHeight:"100vh",maxWidth:420,margin:"0 auto",overflowX:"hidden"}}>
+        <Archive archive={archive} onBack={()=>setShowArchive(false)}/>
+      </div>
+    );
+  }
+
   // Accounts screen is a full-screen overlay
   if (showAccounts) {
     return (
@@ -3091,6 +3248,7 @@ export default function App() {
     {id:"goal",         icon:"🎯", label:"Goal"},
     {id:"pay",          icon:"💸", label:"Pay"},
     {id:"work",         icon:"💼", label:"Work"},
+    {id:"archive",      icon:"📦", label:"Archive"},
   ];
 
   return (
@@ -3115,6 +3273,7 @@ export default function App() {
       {tab==="pay"          && <Pay upiList={upiList}/>}
 
       {tab==="work"         && <Work workRecords={workRecords} setWorkRecords={setWorkRecords} workNames={workNames} />}
+      {tab==="archive"      && <Archive archive={archive} onBack={()=>setTab("dashboard")}/>}
 
       {/* Settings — bottom sheet, opened via gear icon on Home */}
       <SettingsSheet
@@ -3132,6 +3291,7 @@ export default function App() {
         categories={categories} setCategories={setCategories}
         workNames={workNames} setWorkNames={setWorkNames}
         workRecords={workRecords} setWorkRecords={setWorkRecords}
+        archive={archive} setArchive={setArchive}
         trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
