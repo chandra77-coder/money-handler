@@ -674,18 +674,6 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
 
   const recent = sortByDateDesc(transactions).slice(0,4);
 
-  // Running balance after each transaction (oldest → newest)
-  const balanceAfterMap = (() => {
-    const sorted = [...transactions].sort((a,b)=>(a.date||"").localeCompare(b.date||"")||a.id-b.id);
-    let running = openingBalance + accounts.reduce((s,a)=>s+(a.opening||0),0);
-    const map = {};
-    sorted.forEach(t => {
-      if (t.type==="income") running += parseFloat(t.amount)||0;
-      else if (t.type==="expense") running -= parseFloat(t.amount)||0;
-      map[t.id] = running;
-    });
-    return map;
-  })();
   const loggedToday = transactions.some(t=>t.date===todayStr());
   const showReminder = notifyEnabled && !loggedToday;
 
@@ -930,6 +918,19 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
       setForm(f => ({ ...f, photo: compressed }));
     });
   };
+
+  // Running balance after each transaction
+  const balanceAfterMap = (() => {
+    const sorted = [...transactions].sort((a,b)=>(a.date||"").localeCompare(b.date||"")||a.id-b.id);
+    let running = openingBalance + accounts.reduce((s,a)=>s+(a.opening||0),0);
+    const map = {};
+    sorted.forEach(t => {
+      if (t.type==="income") running += parseFloat(t.amount)||0;
+      else if (t.type==="expense") running -= parseFloat(t.amount)||0;
+      map[t.id] = running;
+    });
+    return map;
+  })();
 
   const [delTxId, setDelTxId] = useState(null);
   const deleteTx = (id) => { setDelTxId(id); };
