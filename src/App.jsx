@@ -2498,6 +2498,7 @@ function SettingsSheet({
   workRecords, setWorkRecords,
   trash, setTrash,
   recurring, setRecurring,
+  monthlyArchive, setMonthlyArchive,
   onOpenProfile,
   onOpenAccounts,
   profile, setProfile,
@@ -2677,6 +2678,13 @@ function SettingsSheet({
           </div>
         )}
 
+        {menuRow("📅","Monthly Archive",`${(monthlyArchive||[]).length} months saved`, "monthly_archive")}
+        {section==="monthly_archive" && (
+          <div onClick={e=>e.stopPropagation()} style={{paddingBottom:8}}>
+            <MonthlyArchiveViewer monthlyArchive={monthlyArchive}/>
+          </div>
+        )}
+
         {/* ── UPI MANAGEMENT ── */}
         {menuRow("📱","UPI IDs",`${upiList.length} saved`, "upi")}
         {section==="upi" && (
@@ -2825,7 +2833,7 @@ function SettingsSheet({
           </div>
         )}
         {menuRow("🗑","Clear All Data","Reset app to fresh state","cleardata")}
-        {menuRow("ℹ️","About","Version 2.4.0", null)}
+        {menuRow("ℹ️","About","Version 2.6.0", null)}
 
       </div>
 
@@ -3407,7 +3415,244 @@ function AccountsScreen({ accounts, setAccounts, transactions, setTransactions, 
   );
 }
 
-// ─── ROOT ─────────────────────────────────────────────────────────────────────
+// ─── MONTHLY ARCHIVE ENGINE ───────────────────────────────────────────────────
+function buildMonthSnapshot(monthKey, transactions, accounts) {
+  const txns = transactions.filter(t => (t.date || "").startsWith(monthKey));
+  const income   = txns.filter(t => t.type === "income").reduce((s,t) => s + t.amount, 0);
+  const expense  = txns.filter(t => t.type === "expense").reduce((s,t) => s + t.amount, 0);
+  const transfer = txns.filter(t => t.type === "transfer").reduce((s,t) => s + t.amount, 0);
+  const savings  = income - expense;
+
+  // Per-account closing balance for this month
+  const accountBalances = accounts.map(acc => {
+    const allTxns = transactions.filter(t =>
+      (t.date || "") <= monthKey + "-31" &&
+      (t.account === acc.name || t.toAccount === acc.name)
+    );
+    const inc  = allTxns.filter(t => t.type==="income"   && t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const exp  = allTxns.filter(t => t.type==="expense"  && t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const tOut = allTxns.filter(t => t.type==="transfer" && t.account===acc.name).reduce((s,t)=>s+t.amount,0);
+    const tIn  = allTxns.filter(t => t.type==="transfer" && t.toAccount===acc.name).reduce((s,t)=>s+t.amount,0);
+    return { name: acc.name, closing: (acc.opening || 0) + inc - exp - tOut + tIn };
+  });
+
+  // Category breakdown
+  const catBreakdown = {};
+  txns.filter(t => t.type === "expense").forEach(t => {
+    catBreakdown[t.category] = (catBreakdown[t.category] || 0) + t.amount;
+  });
+
+  return {
+    monthKey,
+    label: (() => {
+      const [y, m] = monthKey.split("-");
+      return new Date(+y, +m - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    })(),
+    income, expense, transfer, savings,
+    txnCount: txns.length,
+    accountBalances,
+    catBreakdown,
+    transactions: txns,
+    archivedAt: Date.now(),
+  };
+}
+
+function autoArchiveMonths(transactions, accounts, monthlyArchive, setMonthlyArchive) {
+  const today = todayStr();
+  const currentMonth = today.slice(0, 7);
+
+  // Find all months in transactions that are NOT the current month
+  const monthsInTxns = [...new Set(
+    transactions.map(t => (t.date || "").slice(0, 7)).filter(m => m && m < currentMonth)
+  )];
+
+  const alreadyArchived = new Set((monthlyArchive || []).map(a => a.monthKey));
+  const toArchive = monthsInTxns.filter(m => !alreadyArchived.has(m));
+
+  if (toArchive.length > 0) {
+    const newArchives = toArchive.map(m => buildMonthSnapshot(m, transactions, accounts));
+    setMonthlyArchive(prev => {
+      const existing = prev || [];
+      const merged = [...existing];
+      newArchives.forEach(na => {
+        const idx = merged.findIndex(a => a.monthKey === na.monthKey);
+        if (idx >= 0) merged[idx] = na; else merged.push(na);
+      });
+      return merged.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+    });
+  }
+}
+
+// ─── MONTHLY ARCHIVE VIEWER ───────────────────────────────────────────────────
+function MonthlyArchiveViewer({ monthlyArchive }) {
+  const [selected, setSelected] = useState(null);
+  const [txFilter, setTxFilter] = useState("all");
+
+  if (selected) {
+    const arc = selected;
+    const visibleTxns = (arc.transactions || []).filter(t =>
+      txFilter === "all" || t.type === txFilter
+    ).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+    return (
+      <div>
+        {/* Back */}
+        <button onClick={() => { setSelected(null); setTxFilter("all"); }}
+          style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none",
+            color:T.teal500, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:14, padding:0 }}>
+          ‹ Back to Archive
+        </button>
+
+        {/* Month header */}
+        <div style={{ background:G.header, borderRadius:R.lg, padding:"16px", marginBottom:12, color:"white" }}>
+          <div style={{ fontSize:18, fontWeight:800, marginBottom:12 }}>{arc.label}</div>
+          <div style={{ display:"flex", gap:8 }}>
+            <div style={{ flex:1, background:"rgba(255,255,255,0.13)", borderRadius:R.md, padding:"10px" }}>
+              <div style={{ fontSize:10, opacity:.7, fontWeight:700 }}>INCOME</div>
+              <div style={{ fontSize:16, fontWeight:800, color:"#7EFFC5", fontFamily:THEME.font.money }}>+{fmt(arc.income)}</div>
+            </div>
+            <div style={{ flex:1, background:"rgba(255,255,255,0.13)", borderRadius:R.md, padding:"10px" }}>
+              <div style={{ fontSize:10, opacity:.7, fontWeight:700 }}>EXPENSE</div>
+              <div style={{ fontSize:16, fontWeight:800, color:"#FFB3B3", fontFamily:THEME.font.money }}>−{fmt(arc.expense)}</div>
+            </div>
+            <div style={{ flex:1, background:"rgba(255,255,255,0.13)", borderRadius:R.md, padding:"10px" }}>
+              <div style={{ fontSize:10, opacity:.7, fontWeight:700 }}>SAVINGS</div>
+              <div style={{ fontSize:16, fontWeight:800, color: arc.savings >= 0 ? "#7EFFC5" : "#FFB3B3", fontFamily:THEME.font.money }}>
+                {arc.savings >= 0 ? "+" : "−"}{fmt(Math.abs(arc.savings))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Account closing balances */}
+        {arc.accountBalances && arc.accountBalances.length > 0 && (
+          <div style={{ background:T.card, borderRadius:R.lg, padding:"12px 14px", marginBottom:12, boxShadow:SH.card }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.inkSoft, marginBottom:10 }}>CLOSING BALANCES</div>
+            {arc.accountBalances.map(ab => (
+              <div key={ab.name} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0",
+                borderBottom:`1px solid ${T.line}` }}>
+                <div style={{ fontSize:13, color:T.ink }}>{ab.name}</div>
+                <div style={{ fontSize:13, fontWeight:700, color: ab.closing >= 0 ? T.income : T.expense, fontFamily:THEME.font.money }}>
+                  {fmt(ab.closing)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Category breakdown */}
+        {Object.keys(arc.catBreakdown || {}).length > 0 && (
+          <div style={{ background:T.card, borderRadius:R.lg, padding:"12px 14px", marginBottom:12, boxShadow:SH.card }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.inkSoft, marginBottom:10 }}>SPENDING BY CATEGORY</div>
+            {Object.entries(arc.catBreakdown).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => (
+              <div key={cat} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:`1px solid ${T.line}` }}>
+                <div style={{ fontSize:13, color:T.ink }}>{cat}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:60, height:5, borderRadius:R.pill, background:T.bgSoft, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${Math.min(100,(amt/arc.expense)*100)}%`, background:T.expense, borderRadius:R.pill }}/>
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:700, color:T.expense, fontFamily:THEME.font.money, minWidth:60, textAlign:"right" }}>{fmt(amt)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Transaction filter */}
+        <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+          {[["all","All"],["income","↑ Income"],["expense","↓ Expense"],["transfer","⇄ Transfer"]].map(([v,lbl]) => (
+            <button key={v} onClick={() => setTxFilter(v)} style={{
+              flex:1, padding:"7px 4px", borderRadius:R.pill, fontSize:11, fontWeight:700, cursor:"pointer",
+              border:`1.5px solid ${txFilter===v ? T.teal500 : T.line}`,
+              background: txFilter===v ? T.mintSoft : T.card,
+              color: txFilter===v ? T.teal700 : T.inkSoft
+            }}>{lbl}</button>
+          ))}
+        </div>
+
+        {/* Transaction list */}
+        <div style={{ background:T.card, borderRadius:R.lg, padding:"4px 14px", boxShadow:SH.card }}>
+          {visibleTxns.length === 0 && (
+            <div style={{ textAlign:"center", padding:"20px 0", color:T.inkSoft, fontSize:13 }}>No transactions</div>
+          )}
+          {visibleTxns.map((t, i) => {
+            const clr = t.type==="income" ? T.income : t.type==="transfer" ? "#9F8AE8" : T.expense;
+            const bg  = t.type==="income" ? T.incomeSoft : t.type==="transfer" ? T.transferSoft : T.expenseSoft;
+            const pfx = t.type==="income" ? "+" : t.type==="transfer" ? "⇄" : "−";
+            return (
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0",
+                borderBottom: i < visibleTxns.length-1 ? `1px solid ${T.line}` : "none" }}>
+                <div style={{ width:38, height:38, borderRadius:R.sm, background:bg,
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{t.icon}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:T.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {t.type==="transfer" ? `${t.account} → ${t.toAccount}` : t.category}
+                  </div>
+                  <div style={{ fontSize:11, color:T.inkSoft }}>{t.date} {t.note ? `· ${t.note}` : ""}</div>
+                </div>
+                <div style={{ fontSize:14, fontWeight:700, color:clr, fontFamily:THEME.font.money, flexShrink:0 }}>
+                  {pfx}{fmt(t.amount)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Total row */}
+        <div style={{ display:"flex", gap:8, marginTop:12 }}>
+          <div style={{ flex:1, background:T.incomeSoft, borderRadius:R.md, padding:"10px 12px" }}>
+            <div style={{ fontSize:10, color:"#1E8E5A", fontWeight:700 }}>TOTAL IN</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"#1E8E5A", fontFamily:THEME.font.money }}>{fmt(arc.income)}</div>
+          </div>
+          <div style={{ flex:1, background:T.expenseSoft, borderRadius:R.md, padding:"10px 12px" }}>
+            <div style={{ fontSize:10, color:T.expense, fontWeight:700 }}>TOTAL OUT</div>
+            <div style={{ fontSize:14, fontWeight:800, color:T.expense, fontFamily:THEME.font.money }}>{fmt(arc.expense)}</div>
+          </div>
+          <div style={{ flex:1, background: arc.savings >= 0 ? T.incomeSoft : T.expenseSoft, borderRadius:R.md, padding:"10px 12px" }}>
+            <div style={{ fontSize:10, color: arc.savings >= 0 ? "#1E8E5A" : T.expense, fontWeight:700 }}>NET</div>
+            <div style={{ fontSize:14, fontWeight:800, color: arc.savings >= 0 ? "#1E8E5A" : T.expense, fontFamily:THEME.font.money }}>
+              {arc.savings >= 0 ? "+" : "−"}{fmt(Math.abs(arc.savings))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Archive list
+  const archive = monthlyArchive || [];
+  return (
+    <div>
+      {archive.length === 0 && (
+        <div style={{ textAlign:"center", padding:"30px 0", color:T.inkSoft }}>
+          <div style={{ fontSize:32, marginBottom:8 }}>📅</div>
+          <div style={{ fontSize:13, fontWeight:600, color:T.ink }}>No archived months yet</div>
+          <div style={{ fontSize:12, marginTop:4 }}>Past months are saved here automatically</div>
+        </div>
+      )}
+      {archive.map(arc => (
+        <button key={arc.monthKey} onClick={() => setSelected(arc)}
+          style={{ width:"100%", background:T.card, borderRadius:R.lg, padding:"14px 16px",
+            marginBottom:10, boxShadow:SH.card, border:`1px solid ${T.line}`,
+            display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", textAlign:"left" }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700, color:T.ink }}>{arc.label}</div>
+            <div style={{ fontSize:12, color:T.inkSoft, marginTop:3 }}>{arc.txnCount} transactions</div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ fontSize:13, fontWeight:700, color: arc.savings >= 0 ? T.income : T.expense, fontFamily:THEME.font.money }}>
+              {arc.savings >= 0 ? "+" : "−"}{fmt(Math.abs(arc.savings))}
+            </div>
+            <div style={{ fontSize:11, color:T.inkSoft, marginTop:2 }}>net savings</div>
+          </div>
+          <div style={{ fontSize:18, color:T.inkSoft, marginLeft:8 }}>›</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
 export default function App() {
   const [tab,          setTab]          = useState("dashboard");
   const [transactions, setTransactions] = useLS("fm_transactions",  SEED_TX);
@@ -3427,6 +3672,7 @@ export default function App() {
   const [workNames,    setWorkNames]    = useLS("fm_work_names",     SEED_WORK_NAMES);
   const [workRecords,    setWorkRecords]    = useLS("fm_work_records", SEED_WORK_RECORDS);
   const [recurring,      setRecurring]      = useLS("fm_recurring",    []);
+  const [monthlyArchive, setMonthlyArchive] = useLS("fm_monthly_archive", []);
   const [unlocked,     setUnlocked]     = useState(!pinEnabled);
 
   // Apply recurring transactions on load
@@ -3434,6 +3680,11 @@ export default function App() {
     if (recurring && recurring.length > 0) {
       applyRecurring(recurring, transactions, setTransactions);
     }
+  }, []); // eslint-disable-line
+
+  // Auto-archive past months on load
+  useEffect(() => {
+    autoArchiveMonths(transactions, accounts, monthlyArchive, setMonthlyArchive);
   }, []); // eslint-disable-line
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
@@ -3539,6 +3790,7 @@ export default function App() {
         workNames={workNames} setWorkNames={setWorkNames}
         workRecords={workRecords} setWorkRecords={setWorkRecords}
         recurring={recurring} setRecurring={setRecurring}
+        monthlyArchive={monthlyArchive} setMonthlyArchive={setMonthlyArchive}
         trash={trash} setTrash={setTrash}
         onOpenProfile={()=>setShowProfile(true)}
         onOpenAccounts={()=>{setSettingsOpen(false);setShowAccounts(true);}}
