@@ -4,6 +4,9 @@ import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { useFinance } from "../context/FinanceContext";
 
 const getTheme = (mode) => THEMES[mode] || THEMES.light;
+const haptic = (duration = 8) => {
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(duration);
+};
 
 export function Sheet({ open, onClose, children }) {
   const { theme } = useFinance();
@@ -51,7 +54,7 @@ export function FBtn({children,onClick,bg,outline,color,style={}}) {
   const btnColor = color || T.teal700;
 
   return (
-    <motion.button onClick={onClick}
+    <motion.button type="button" onClick={(event) => { haptic(); onClick?.(event); }}
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", stiffness: 500, damping: 28 }}
@@ -74,7 +77,7 @@ export function ToggleSwitch({ on, onChange }) {
   const R = THEME_CONFIG.radius;
 
   return (
-    <motion.button onClick={(e)=>{e.stopPropagation();onChange(!on);}} whileTap={{ scale: 0.92 }} transition={{ type: "spring", stiffness: 500, damping: 25 }} style={{
+    <motion.button type="button" aria-pressed={on} onClick={(e)=>{e.stopPropagation();haptic(6);onChange(!on);}} whileTap={{ scale: 0.92 }} transition={{ type: "spring", stiffness: 500, damping: 25 }} style={{
       width:46,height:27,borderRadius:R.pill,border:"none",cursor:"pointer",flexShrink:0,
       background:on?G.primary:T.line,position:"relative",transition:"background .2s",padding:0}}>
       <div style={{position:"absolute",top:3,left:on?22:3,width:21,height:21,borderRadius:"50%",
@@ -114,7 +117,7 @@ export function TypeToggle({options, value, onChange, colors={}}) {
   return (
     <div style={{display:"flex",background:T.bgSoft,borderRadius:R.md,padding:4,gap:4,marginBottom:14,border:`1px solid ${T.line}`}}>
       {options.map(([v,lbl])=>(
-        <motion.button key={v} whileTap={{ scale: 0.96 }} animate={{ scale: value===v ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>onChange(v)} style={{
+        <motion.button type="button" key={v} aria-pressed={value===v} whileTap={{ scale: 0.96 }} animate={{ scale: value===v ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>{haptic(6);onChange(v);}} style={{
           flex:1,padding:"11px 4px",border:"none",borderRadius:R.sm,cursor:"pointer",
           fontWeight:700,fontSize:12,fontFamily:THEME_CONFIG.font.body,
           background: value===v ? (colors[v] || G.primary) : "transparent",
@@ -150,7 +153,7 @@ export function ChipRow({items, selected, onSelect, activeColor, activeBg}) {
         const prefix = typeof item === "object" && item.icon ? item.icon+" " : "";
         const isActive = selected === key;
         return (
-          <motion.button key={key} whileTap={{ scale: 0.94 }} animate={{ scale: isActive ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>onSelect(key)} style={{
+          <motion.button type="button" key={key} aria-pressed={isActive} whileTap={{ scale: 0.94 }} animate={{ scale: isActive ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>{haptic(5);onSelect(key);}} style={{
             padding:"8px 14px",borderRadius:R.pill,border:"1.5px solid",cursor:"pointer",fontFamily:THEME_CONFIG.font.body,
             borderColor: isActive ? aColor : T.line,
             background: isActive ? aBg : T.card,
@@ -161,6 +164,20 @@ export function ChipRow({items, selected, onSelect, activeColor, activeBg}) {
           }}>{prefix}{label}</motion.button>
         );
       })}
+    </div>
+  );
+}
+
+export function EmptyState({ icon = "✨", title, description, actionLabel, onAction }) {
+  const { theme } = useFinance();
+  const T = getTheme(theme).colors;
+  const R = THEME_CONFIG.radius;
+  return (
+    <div role="status" style={{ background: T.bgSoft, borderRadius: R.lg, padding: "28px 18px", textAlign: "center", color: T.inkSoft }}>
+      <div style={{ fontSize: 34, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 5 }}>{title}</div>
+      {description && <div style={{ maxWidth: 280, margin: "0 auto", fontSize: 12, lineHeight: 1.5 }}>{description}</div>}
+      {actionLabel && <FBtn onClick={onAction} style={{ marginTop: 14, padding: "10px 14px", fontSize: 12 }}>{actionLabel}</FBtn>}
     </div>
   );
 }

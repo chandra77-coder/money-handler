@@ -4,7 +4,7 @@ import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, compressImage } from "../utils/formatters";
 import { monthYearStr, genWorkCode, applySpendAmountChange, toAmount } from "../utils/dataHelpers";
-import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar } from "./Shared";
+import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar, EmptyState } from "./Shared";
 
 const makeEmptyWork = () => ({ type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null });
 
@@ -147,13 +147,7 @@ export function Work() {
         </div>
 
         <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 4 }}>History</div>
-        {visible.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#9FB3AD" }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>💼</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{search ? "No results" : "No work records"}</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Tap + to add your first job</div>
-          </div>
-        )}
+        {visible.length === 0 && <EmptyState icon={search ? "🔍" : "💼"} title={search ? "No matching work" : "Your work ledger is ready"} description={search ? "Try another customer, code, or work name." : "Capture jobs, payments, and work expenses in one calm place."} actionLabel={search ? undefined : "Add work"} onAction={search ? undefined : openAdd} />}
 
         {visible.map(record => {
           const isExpanded = expandedId === record.id;

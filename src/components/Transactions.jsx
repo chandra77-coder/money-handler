@@ -5,7 +5,7 @@ import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime, compressImage } from "../utils/formatters";
 import { sortByDateDesc, monthYearStr, smartSearch, toAmount } from "../utils/dataHelpers";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
-import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar } from "./Shared";
+import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar, EmptyState } from "./Shared";
 import { INCOME_METHODS, EXPENSE_METHODS } from "../constants/seedData";
 
 const makeEmptyTx = () => ({type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null});
@@ -174,11 +174,7 @@ export function Transactions() {
         </div>
 
         {Object.keys(grouped).length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#9FB3AD" }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🔍</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{search || filterType !== "all" || filterMonth ? "No results" : "No transactions yet"}</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Tap + or type "create" to add one</div>
-          </div>
+          <EmptyState icon={search || filterType !== "all" || filterMonth ? "🔍" : "🧾"} title={search || filterType !== "all" || filterMonth ? "No matching transactions" : "Your ledger is ready"} description={search || filterType !== "all" || filterMonth ? "Try a different search or filter." : "Add your first income, expense, or transfer to see your money story here."} actionLabel={search || filterType !== "all" || filterMonth ? undefined : "Add transaction"} onAction={search || filterType !== "all" || filterMonth ? undefined : () => { setForm(makeEmptyTx()); setShowSheet(true); }} />
         )}
         {Object.entries(grouped).map(([lbl, txns]) => (
           <div key={lbl} style={{ marginBottom: 16 }}>

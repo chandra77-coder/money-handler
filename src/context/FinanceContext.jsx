@@ -5,7 +5,7 @@ import {
   SEED_CATEGORIES, SEED_WORK_RECORDS, SEED_WORK_NAMES
 } from "../constants/seedData";
 import { todayStr } from "../utils/formatters";
-import { createId } from "../utils/dataHelpers";
+import { advanceRecurringDate, createId } from "../utils/dataHelpers";
 
 const FinanceContext = createContext();
 
@@ -46,6 +46,10 @@ export const FinanceProvider = ({ children }) => {
   const [workRecordsState, setWorkRecordsState] = useLS("fm_work_records", SEED_WORK_RECORDS);
   const [workNamesState, setWorkNamesState] = useLS("fm_work_names", SEED_WORK_NAMES);
   const [trashState, setTrashState] = useLS("fm_trash", EMPTY_TRASH);
+  const [recurringState, setRecurringState] = useLS("fm_recurring", []);
+  const [savingsGoalsState, setSavingsGoalsState] = useLS("fm_savings_goals", []);
+  const [budgetsState, setBudgetsState] = useLS("fm_budgets", []);
+  const [onboardingCompleteState, setOnboardingCompleteState] = useLS("fm_onboarding_complete", false);
   const transactions = Array.isArray(transactionsState) ? transactionsState : [];
   const loans = Array.isArray(loansState) ? loansState : [];
   const accounts = Array.isArray(accountsState) ? accountsState : [];
@@ -58,6 +62,10 @@ export const FinanceProvider = ({ children }) => {
     expense: Array.isArray(categoriesState?.expense) ? categoriesState.expense : SEED_CATEGORIES.expense,
   };
   const upiList = Array.isArray(upiListState) ? upiListState : [];
+  const recurring = Array.isArray(recurringState) ? recurringState : [];
+  const savingsGoals = Array.isArray(savingsGoalsState) ? savingsGoalsState : [];
+  const budgets = Array.isArray(budgetsState) ? budgetsState : [];
+  const onboardingComplete = Boolean(onboardingCompleteState || profile.name || accounts.length || transactions.length);
 
   const setTransactions = (next) => setTransactionsState(prev => {
     const current = Array.isArray(prev) ? prev : [];
@@ -95,8 +103,25 @@ export const FinanceProvider = ({ children }) => {
   });
   const setUpiList = (next) => setUpiListState(prev => {
     const current = Array.isArray(prev) ? prev : [];
-    return typeof next === "function" ? next(current) : next;
+    const result = typeof next === "function" ? next(current) : next;
+    return Array.isArray(result) ? result : current;
   });
+  const setRecurring = (next) => setRecurringState(prev => {
+    const current = Array.isArray(prev) ? prev : [];
+    const result = typeof next === "function" ? next(current) : next;
+    return Array.isArray(result) ? result : current;
+  });
+  const setSavingsGoals = (next) => setSavingsGoalsState(prev => {
+    const current = Array.isArray(prev) ? prev : [];
+    const result = typeof next === "function" ? next(current) : next;
+    return Array.isArray(result) ? result : current;
+  });
+  const setBudgets = (next) => setBudgetsState(prev => {
+    const current = Array.isArray(prev) ? prev : [];
+    const result = typeof next === "function" ? next(current) : next;
+    return Array.isArray(result) ? result : current;
+  });
+  const completeOnboarding = () => setOnboardingCompleteState(true);
   const setTrash = (next) => setTrashState(prev => normalizeTrash(typeof next === "function" ? next(normalizeTrash(prev)) : next));
 
   // --- UI State ---
@@ -174,6 +199,74 @@ export const FinanceProvider = ({ children }) => {
     }
   };
 
+  const addRecurring = (rule) => setRecurring(prev => [{ ...rule, id: createId(), active: true, nextDue: rule.nextDue || todayStr(), createdAt: Date.now() }, ...prev]);
+  const updateRecurring = (id, rule) => setRecurring(prev => prev.map(item => item.id === id ? { ...item, ...rule, id } : item));
+  const deleteRecurring = (id) => setRecurring(prev => prev.filter(item => item.id !== id));
+  const toggleRecurring = (id) => setRecurring(prev => prev.map(item => item.id === id ? { ...item, active: item.active === false } : item));
+
+  const addSavingsGoal = (goal) => setSavingsGoals(prev => [{ ...goal, id: createId(), current: amountOf(goal.current), target: amountOf(goal.target), createdAt: Date.now() }, ...prev]);
+  const updateSavingsGoal = (id, goal) => setSavingsGoals(prev => prev.map(item => item.id === id ? { ...item, ...goal, id, current: amountOf(goal.current), target: amountOf(goal.target) } : item));
+  const deleteSavingsGoal = (id) => setSavingsGoals(prev => prev.filter(item => item.id !== id));
+  const contributeToSavingsGoal = (id, amount) => {
+    const contribution = amountOf(amount);
+    if (contribution <= 0) return;
+    setSavingsGoals(prev => prev.map(item => item.id === id ? { ...item, current: Math.min(item.target, amountOf(item.current) + contribution) } : item));
+  };
+
+  const addBudget = (budget) => setBudgets(prev => [{ ...budget, id: createId(), limit: amountOf(budget.limit), active: true }, ...prev]);
+  const updateBudget = (id, budget) => setBudgets(prev => prev.map(item => item.id === id ? { ...item, ...budget, id, limit: amountOf(budget.limit) } : item));
+  const deleteBudget = (id) => setBudgets(prev => prev.filter(item => item.id !== id));
+  const currentMonth = todayStr().slice(0, 7);
+  const budgetSnapshot = useMemo(() => budgets.map(budget => {
+    const spent = transactions.filter(tx => tx.type === "expense" && tx.category === budget.category && (tx.date || "").startsWith(currentMonth)).reduce((sum, tx) => sum + amountOf(tx.amount), 0);
+    return { ...budget, spent, remaining: amountOf(budget.limit) - spent, percent: amountOf(budget.limit) > 0 ? (spent / amountOf(budget.limit)) * 100 : 0 };
+  }), [budgets, transactions, currentMonth]);
+
+  useEffect(() => {
+    const today = todayStr();
+    const generated = [];
+    let changed = false;
+    const nextRecurring = recurring.map(rule => {
+      if (rule.active === false) return rule;
+      let dueDate = rule.nextDue || today;
+      let runs = 0;
+      let ruleChanged = false;
+      while (dueDate && dueDate <= today && runs < 120) {
+        const nextDate = advanceRecurringDate(dueDate, rule.frequency);
+        generated.push({
+          type: rule.type,
+          category: rule.category,
+          icon: rule.icon,
+          amount: amountOf(rule.amount),
+          note: rule.note,
+          date: dueDate,
+          account: rule.account,
+          toAccount: rule.toAccount || "",
+          method: rule.method || "",
+          photo: rule.photo || null,
+          recurringId: rule.id,
+          createdAt: Date.now() + runs,
+          id: createId(),
+        });
+        changed = true;
+        ruleChanged = true;
+        runs += 1;
+        if (nextDate === dueDate) break;
+        dueDate = nextDate;
+      }
+      return ruleChanged ? { ...rule, nextDue: dueDate, lastRun: today } : rule;
+    });
+
+    if (changed) {
+      setTransactions(prev => {
+        const existingKeys = new Set(prev.filter(item => item.recurringId).map(item => `${item.recurringId}:${item.date}`));
+        const additions = generated.filter(item => !existingKeys.has(`${item.recurringId}:${item.date}`));
+        return additions.length ? [...additions, ...prev] : prev;
+      });
+      setRecurringState(nextRecurring);
+    }
+  }, [recurring]);
+
   const value = {
     transactions, setTransactions, addTransaction, updateTransaction, deleteTransaction,
     loans, setLoans, addLoan, updateLoan, deleteLoan,
@@ -187,6 +280,10 @@ export const FinanceProvider = ({ children }) => {
     upiList, setUpiList,
     workRecords, setWorkRecords, addWorkRecord, updateWorkRecord, deleteWorkRecord,
     workNames, setWorkNames,
+    recurring, setRecurring, addRecurring, updateRecurring, deleteRecurring, toggleRecurring,
+    savingsGoals, setSavingsGoals, addSavingsGoal, updateSavingsGoal, deleteSavingsGoal, contributeToSavingsGoal,
+    budgets, setBudgets, addBudget, updateBudget, deleteBudget, budgetSnapshot,
+    onboardingComplete, completeOnboarding,
     trash, setTrash,
     activeTab, setActiveTab,
     theme, setTheme,

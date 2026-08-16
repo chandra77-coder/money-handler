@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime } from "../utils/formatters";
-import { sortByDateDesc, monthYearStr, getLast6Months, toAmount } from "../utils/dataHelpers";
+import { sortByDateDesc, monthYearStr, getLast6Months, progressPercent, toAmount } from "../utils/dataHelpers";
 const CashFlowChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.CashFlowChart })));
 const SpendingPieChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.SpendingPieChart })));
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
@@ -16,7 +16,7 @@ export function Dashboard({ onOpenSettings }) {
   const {
     transactions, deleteTransaction, updateTransaction,
     loans, accounts, openingBalance, declaredAmount, manualCheck,
-    profile, categories, theme, notifyEnabled, totals, accountBalances, totalTracked
+    profile, categories, theme, notifyEnabled, savingsGoals, budgetSnapshot, totals, accountBalances, totalTracked
   } = useFinance();
 
   const [selectedTx, setSelectedTx] = useState(null);
@@ -118,6 +118,33 @@ export function Dashboard({ onOpenSettings }) {
                 <div style={{fontSize:15,fontWeight:800,color:acc.balance>=0?T.ink:T.expense,fontFamily:THEME_CONFIG.font.money}}>{fmt(acc.balance)}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {savingsGoals.length > 0 && (
+          <div style={{ background: T.card, borderRadius: R.lg, padding: "13px", marginBottom: 14, boxShadow: SH.card }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>🎯 Savings progress</div>
+              <div style={{ fontSize: 10, color: T.inkSoft }}>{savingsGoals.filter(goal => progressPercent(goal.current, goal.target) >= 100).length}/{savingsGoals.length} complete</div>
+            </div>
+            {savingsGoals.slice(0, 3).map(goal => {
+              const progress = progressPercent(goal.current, goal.target);
+              return <div key={goal.id} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}><span style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>{goal.emoji || "🎯"} {goal.name}</span><span style={{ fontSize: 11, color: T.teal700, fontWeight: 800 }}>{Math.round(progress)}%</span></div>
+                <div style={{ height: 7, background: T.line, borderRadius: R.pill, overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? T.income : G.primary, borderRadius: R.pill }} /></div>
+              </div>;
+            })}
+          </div>
+        )}
+
+        {budgetSnapshot.length > 0 && (
+          <div style={{ background: T.card, borderRadius: R.lg, padding: "13px", marginBottom: 14, boxShadow: SH.card }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 11 }}><div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>📊 Budget health</div><div style={{ fontSize: 10, color: T.inkSoft }}>This month</div></div>
+            {budgetSnapshot.slice(0, 3).map(budget => {
+              const over = budget.percent > 100;
+              const color = over ? T.expense : budget.percent >= 80 ? T.gold : T.teal500;
+              return <div key={budget.id} style={{ marginBottom: 9 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 11, color: T.ink, fontWeight: 700 }}>{budget.category}</span><span style={{ fontSize: 10, color, fontWeight: 800 }}>{over ? "Over" : `${Math.round(budget.percent)}% used`}</span></div><div style={{ height: 6, background: T.line, borderRadius: R.pill, overflow: "hidden" }}><div style={{ width: `${Math.min(100, Math.max(0, budget.percent))}%`, height: "100%", background: color, borderRadius: R.pill }} /></div></div>;
+            })}
           </div>
         )}
 

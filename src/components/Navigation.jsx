@@ -25,7 +25,7 @@ export function Navigation() {
       {tabs.map(tab => {
         const isActive = activeTab === tab.id;
         return (
-          <motion.button key={tab.id} onClick={() => setActiveTab(tab.id)}
+          <motion.button type="button" key={tab.id} aria-label={tab.label} aria-current={isActive ? "page" : undefined} onClick={() => setActiveTab(tab.id)}
             whileTap={{ scale: 0.88 }}
             transition={{ type: "spring", stiffness: 420, damping: 26 }}
             style={{

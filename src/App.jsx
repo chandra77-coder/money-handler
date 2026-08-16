@@ -9,15 +9,20 @@ import { Loans } from "./components/Loans";
 import { Work } from "./components/Work";
 import { Settings } from "./components/Settings";
 import { PinScreen } from "./components/PinScreen";
+import { Onboarding } from "./components/Onboarding";
 
 function AppContent() {
-  const { activeTab, pinEnabled, pin, theme } = useFinance();
+  const { activeTab, pinEnabled, pin, theme, onboardingComplete, completeOnboarding } = useFinance();
   const [isLocked, setIsLocked] = useState(pinEnabled && !!pin);
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     setIsLocked(pinEnabled && !!pin);
   }, [pinEnabled, pin]);
+
+  if (!onboardingComplete) {
+    return <><GlobalStyles themeMode={theme} /><Onboarding onComplete={completeOnboarding} /></>;
+  }
 
   if (isLocked) {
     return <PinScreen mode="verify" onSuccess={() => setIsLocked(false)} />;

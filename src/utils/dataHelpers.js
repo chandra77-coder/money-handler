@@ -61,3 +61,23 @@ export const createId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
+
+export const advanceRecurringDate = (dateStr, frequency = "monthly") => {
+  const date = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  if (frequency === "weekly") {
+    date.setDate(date.getDate() + 7);
+  } else {
+    const originalDay = date.getDate();
+    const targetMonth = date.getMonth() + 1;
+    const lastDay = new Date(date.getFullYear(), targetMonth + 1, 0).getDate();
+    date.setMonth(targetMonth, Math.min(originalDay, lastDay));
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+export const progressPercent = (current, target) => {
+  const safeTarget = toAmount(target);
+  if (safeTarget <= 0) return 0;
+  return Math.min(100, Math.max(0, (toAmount(current) / safeTarget) * 100));
+};

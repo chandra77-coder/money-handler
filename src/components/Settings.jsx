@@ -5,6 +5,9 @@ import { Sheet, FBtn, FInput, ToggleSwitch } from "./Shared";
 import { CategoryManager, TrashManager, UPIManager, AccountManager } from "./SettingsComponents";
 import { compressImage } from "../utils/formatters";
 import { PinScreen } from "./PinScreen";
+import { RecurringTransactions } from "./RecurringTransactions";
+import { SavingsGoals } from "./SavingsGoals";
+import { BudgetManager } from "./BudgetManager";
 
 export function Settings({ open, onClose }) {
   const { 
@@ -96,6 +99,15 @@ export function Settings({ open, onClose }) {
 
         {menuRow("💳", "UPI Manager", "Manage your UPI IDs & QR codes", "upi")}
         {section === "upi" && <UPIManager />}
+
+        {menuRow("🔁", "Recurring Transactions", "Automate regular income and expenses", "recurring")}
+        {section === "recurring" && <RecurringTransactions />}
+
+        {menuRow("🎯", "Savings Goals", "Track what you are building toward", "savings")}
+        {section === "savings" && <SavingsGoals />}
+
+        {menuRow("📊", "Smart Budgets", "Set category limits for this month", "budgets")}
+        {section === "budgets" && <BudgetManager />}
 
         {menuRow("🔔", "Daily Reminder", notifyEnabled ? "Remind me to log today's activity" : "Reminders are off", "reminder")}
         {section === "reminder" && (

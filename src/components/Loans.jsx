@@ -4,7 +4,7 @@ import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr } from "../utils/formatters";
 import { monthYearStr, avatarColor, toAmount, createId } from "../utils/dataHelpers";
-import { Sheet, TypeToggle, Label, FInput, FBtn, SearchBar } from "./Shared";
+import { Sheet, TypeToggle, Label, FInput, FBtn, SearchBar, EmptyState } from "./Shared";
 
 const makeEmptyLoan = () => ({ type: "took", name: "", amount: "", reason: "", date: todayStr(), dueDate: "", status: "pending", payments: [] });
 
@@ -117,13 +117,7 @@ export function Loans() {
           ))}
         </div>
 
-        {visible.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#9FB3AD" }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>📭</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{search ? "No results" : "No loans here"}</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Tap + or type "create" to add one</div>
-          </div>
-        )}
+        {visible.length === 0 && <EmptyState icon={search ? "🔍" : "🤝"} title={search ? "No matching loans" : "No loans tracked yet"} description={search ? "Try another name or reason." : "Track money you lend or borrow so nothing slips through the cracks."} actionLabel={search ? undefined : "Add loan"} onAction={search ? undefined : openAdd} />}
 
         {visible.map(loan => {
           const payments = loan.payments || [];
