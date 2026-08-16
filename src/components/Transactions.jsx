@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime, compressImage } from "../utils/formatters";
@@ -190,7 +191,7 @@ export function Transactions() {
             <div style={{ fontSize: 11, color: T.inkSoft, fontWeight: 700, letterSpacing: .6, marginBottom: 8 }}>{lbl.toUpperCase()}</div>
             <div style={{ background: T.card, borderRadius: R.lg, padding: "4px 14px", boxShadow: SH.card }}>
               {txns.map((t, i) => (
-                <div key={t.id} onClick={() => setSelectedTx(t)} style={{
+                <motion.div key={t.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.035, duration: 0.26, ease: [0.22, 1, 0.36, 1] }} whileTap={{ scale: 0.985 }} onClick={() => setSelectedTx(t)} className="smooth-card" style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "13px 0",
                   borderBottom: i < txns.length - 1 ? `1px solid ${T.line}` : "none", cursor: "pointer"
                 }}>
@@ -223,7 +224,7 @@ export function Transactions() {
                       </label>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -320,12 +321,14 @@ export function Transactions() {
 
       <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} onDelete={deleteTransaction} onEdit={openEdit} />
 
-      {viewPhoto && (
-        <div onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <img src={viewPhoto} alt="Transaction photo" style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
-          <button onClick={() => setViewPhoto(null)} aria-label="Close photo" style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
-        </div>
-      )}
+      <AnimatePresence>
+        {viewPhoto && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 26 }} src={viewPhoto} alt="Transaction photo" style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
+            <button onClick={() => setViewPhoto(null)} aria-label="Close photo" style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

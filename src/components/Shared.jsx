@@ -1,4 +1,5 @@
 import React from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { useFinance } from "../context/FinanceContext";
 
@@ -10,14 +11,17 @@ export function Sheet({ open, onClose, children }) {
   const R = THEME_CONFIG.radius;
   const SH = THEME_CONFIG.shadow;
 
-  if (!open) return null;
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(2px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:`${R.xxl}px ${R.xxl}px 0 0`,padding:"20px 18px 48px",width:"100%",maxWidth:420,maxHeight:"92vh",overflowY:"auto",boxSizing:"border-box",boxShadow:SH.raised,fontFamily:THEME_CONFIG.font.body}}>
-        <div style={{width:42,height:5,borderRadius:3,background:T.line,margin:"0 auto 18px"}}/>
-        {children}
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <motion.div key="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(10,26,24,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(2px)"}}>
+          <motion.div key="sheet-panel" initial={{ y: "100%", opacity: 0.85 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0.85 }} transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.8 }} onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:`${R.xxl}px ${R.xxl}px 0 0`,padding:"20px 18px 48px",width:"100%",maxWidth:420,maxHeight:"92vh",overflowY:"auto",boxSizing:"border-box",boxShadow:SH.raised,fontFamily:THEME_CONFIG.font.body}}>
+            <div style={{width:42,height:5,borderRadius:3,background:T.line,margin:"0 auto 18px"}}/>
+            {children}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -47,11 +51,10 @@ export function FBtn({children,onClick,bg,outline,color,style={}}) {
   const btnColor = color || T.teal700;
 
   return (
-    <button onClick={onClick}
-      onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
-      onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
-      onTouchStart={e=>e.currentTarget.style.transform="scale(0.97)"}
-      onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}
+    <motion.button onClick={onClick}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 500, damping: 28 }}
       style={{
       padding:"13px 16px",borderRadius:R.md,cursor:"pointer",fontWeight:700,fontSize:14,
       border: outline ? `1.5px solid ${btnColor}` : "none",
@@ -59,7 +62,7 @@ export function FBtn({children,onClick,bg,outline,color,style={}}) {
       color: outline ? btnColor : "white",
       boxShadow: outline ? "none" : SH.button,
       fontFamily:THEME_CONFIG.font.body, transition:"transform .1s ease",...style
-    }}>{children}</button>
+    }}>{children}</motion.button>
   );
 }
 
@@ -71,12 +74,12 @@ export function ToggleSwitch({ on, onChange }) {
   const R = THEME_CONFIG.radius;
 
   return (
-    <button onClick={(e)=>{e.stopPropagation();onChange(!on);}} style={{
+    <motion.button onClick={(e)=>{e.stopPropagation();onChange(!on);}} whileTap={{ scale: 0.92 }} transition={{ type: "spring", stiffness: 500, damping: 25 }} style={{
       width:46,height:27,borderRadius:R.pill,border:"none",cursor:"pointer",flexShrink:0,
       background:on?G.primary:T.line,position:"relative",transition:"background .2s",padding:0}}>
       <div style={{position:"absolute",top:3,left:on?22:3,width:21,height:21,borderRadius:"50%",
         background:"white",boxShadow:"0 2px 4px rgba(0,0,0,0.25)",transition:"left .2s"}}/>
-    </button>
+    </motion.button>
   );
 }
 
@@ -93,8 +96,8 @@ export function SearchBar({value, onChange, placeholder}) {
           fontSize:13,background:"rgba(255,255,255,0.94)",boxSizing:"border-box",outline:"none",
           boxShadow:"0 4px 16px rgba(0,0,0,0.18)",fontFamily:THEME_CONFIG.font.body,color:T.ink}}/>
       {value && (
-        <span onClick={()=>onChange({target:{value:""}})}
-          style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.inkSoft,fontSize:14}}>✕</span>
+        <motion.button onClick={()=>onChange({target:{value:""}})} whileTap={{ scale: 0.82 }} aria-label="Clear search"
+          style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.inkSoft,fontSize:14,border:"none",background:"transparent",padding:4,lineHeight:1}}>✕</motion.button>
       )}
     </div>
   );
@@ -111,13 +114,13 @@ export function TypeToggle({options, value, onChange, colors={}}) {
   return (
     <div style={{display:"flex",background:T.bgSoft,borderRadius:R.md,padding:4,gap:4,marginBottom:14,border:`1px solid ${T.line}`}}>
       {options.map(([v,lbl])=>(
-        <button key={v} onClick={()=>onChange(v)} style={{
+        <motion.button key={v} whileTap={{ scale: 0.96 }} animate={{ scale: value===v ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>onChange(v)} style={{
           flex:1,padding:"11px 4px",border:"none",borderRadius:R.sm,cursor:"pointer",
-          fontWeight:700,fontSize:12,transition:"all .2s",fontFamily:THEME_CONFIG.font.body,
+          fontWeight:700,fontSize:12,fontFamily:THEME_CONFIG.font.body,
           background: value===v ? (colors[v] || G.primary) : "transparent",
           color: value===v ? "white" : T.inkSoft,
           boxShadow: value===v ? SH.soft : "none",
-        }}>{lbl}</button>
+        }}>{lbl}</motion.button>
       ))}
     </div>
   );
@@ -147,7 +150,7 @@ export function ChipRow({items, selected, onSelect, activeColor, activeBg}) {
         const prefix = typeof item === "object" && item.icon ? item.icon+" " : "";
         const isActive = selected === key;
         return (
-          <button key={key} onClick={()=>onSelect(key)} style={{
+          <motion.button key={key} whileTap={{ scale: 0.94 }} animate={{ scale: isActive ? 1 : 0.985 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} onClick={()=>onSelect(key)} style={{
             padding:"8px 14px",borderRadius:R.pill,border:"1.5px solid",cursor:"pointer",fontFamily:THEME_CONFIG.font.body,
             borderColor: isActive ? aColor : T.line,
             background: isActive ? aBg : T.card,
@@ -155,7 +158,7 @@ export function ChipRow({items, selected, onSelect, activeColor, activeBg}) {
             boxShadow: isActive ? SH.soft : "none",
             color: isActive ? aColor : T.inkSoft,
             transition:"all .15s"
-          }}>{prefix}{label}</button>
+          }}>{prefix}{label}</motion.button>
         );
       })}
     </div>

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr } from "../utils/formatters";
@@ -128,7 +129,7 @@ export function Loans() {
           const paidPct = Math.min(100, loan.amount > 0 ? (paidAmt / loan.amount) * 100 : 0);
           const isOverdue = loan.dueDate && loan.dueDate < todayStr() && loan.status === "pending";
           return (
-            <div key={loan.id} style={{
+            <motion.div key={loan.id} layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: visible.indexOf(loan) * 0.045, duration: 0.28, ease: [0.22, 1, 0.36, 1] }} whileTap={{ scale: 0.992 }} className="smooth-card" style={{
               background: T.card, borderRadius: R.lg, padding: "10px 12px", marginBottom: 12,
               boxShadow: SH.card,
               borderLeft: `4px solid ${isOverdue ? "#E53E3E" : loan.type === "took" ? T.expense : T.income}`,
@@ -208,7 +209,7 @@ export function Loans() {
                   fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: THEME_CONFIG.font.body
                 }}>🗑</button>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>

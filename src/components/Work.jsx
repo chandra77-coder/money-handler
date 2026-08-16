@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, compressImage } from "../utils/formatters";
@@ -158,8 +159,8 @@ export function Work() {
         {visible.map(record => {
           const isExpanded = expandedId === record.id;
           return (
-            <div key={record.id} onClick={() => setExpandedId(isExpanded ? null : record.id)} style={{ 
-              background: T.card, borderRadius: R.lg, padding: "12px", marginBottom: 12, boxShadow: SH.card, 
+            <motion.div key={record.id} layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: visible.indexOf(record) * 0.045, duration: 0.28, ease: [0.22, 1, 0.36, 1] }} whileTap={{ scale: 0.992 }} onClick={() => setExpandedId(isExpanded ? null : record.id)} className="smooth-card" style={{
+              background: T.card, borderRadius: R.lg, padding: "12px", marginBottom: 12, boxShadow: SH.card,
               borderLeft: `4px solid ${record.status === "paid" ? T.income : record.status === "unpaid" ? T.expense : T.gold}`,
               cursor: "pointer", transition: "all 0.2s ease"
             }}>
@@ -187,8 +188,10 @@ export function Work() {
                 </div>
               </div>
 
+              <AnimatePresence initial={false}>
               {isExpanded && (
-                <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}`, animation: "fadeIn 0.2s ease" }}>
+                <motion.div key="expanded-actions" initial={{ opacity: 0, height: 0, y: -6 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: -6 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} style={{ overflow: "hidden" }}>
+                <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     {record.photo ? (
                       <button onClick={() => setViewPhoto(record.photo)} aria-label="View work photo" style={{ width: 52, height: 52, padding: 0, border: `1.5px solid ${T.teal500}`, borderRadius: R.sm, background: T.bgSoft, cursor: "pointer", overflow: "hidden", flexShrink: 0 }}>
@@ -216,34 +219,37 @@ export function Work() {
                   </div>
                   <button onClick={() => openEdit(record)} style={{ width: "100%", marginTop: 10, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✏️ Edit Entry</button>
                 </div>
+                </motion.div>
               )}
-            </div>
+              </AnimatePresence>
+            </motion.div>
           );
         })}
       </div>
 
       <button onClick={openAdd} style={{ position: "fixed", bottom: 90, right: "max(16px, calc(50% - 210px + 16px))", width: 58, height: 58, borderRadius: R.pill, background: G.gold, color: T.teal900, fontSize: 28, border: "none", cursor: "pointer", fontWeight: 700, boxShadow: "0 8px 22px rgba(232,199,126,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
 
-      {viewPhoto && (
-        <div onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <img src={viewPhoto} alt="Work Photo" style={{ maxWidth: "100%", maxHeight: "80%", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
-          <button onClick={() => setViewPhoto(null)} style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
-        </div>
-      )}
-
-      {delId && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
-          <div style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Are you sure you want to delete this work entry? This cannot be undone.</div>
-            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>This action cannot be undone.</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <FBtn onClick={() => setDelId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
-              <FBtn onClick={() => { deleteWorkRecord(delId); setDelId(null); }} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {viewPhoto && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 26 }} src={viewPhoto} alt="Work Photo" style={{ maxWidth: "100%", maxHeight: "80%", borderRadius: R.lg, boxShadow: "0 0 30px rgba(0,0,0,0.5)" }} />
+            <button onClick={() => setViewPhoto(null)} style={{ position: "absolute", top: 30, right: 20, background: "white", border: "none", borderRadius: "50%", width: 40, height: 40, fontSize: 20, fontWeight: 700, cursor: "pointer" }}>✕</button>
+          </motion.div>
+        )}
+        {delId && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ type: "spring", stiffness: 360, damping: 28 }} style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Are you sure you want to delete this work entry? This cannot be undone.</div>
+              <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>This action cannot be undone.</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <FBtn onClick={() => setDelId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
+                <FBtn onClick={() => { deleteWorkRecord(delId); setDelId(null); }} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Sheet open={showSheet} onClose={() => setShowSheet(false)}>
         <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginBottom: 14, fontFamily: THEME_CONFIG.font.money }}>{editId ? "Edit Record" : "New Work Record"}</div>

@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
+import { motion } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime } from "../utils/formatters";
 import { sortByDateDesc, monthYearStr, getLast6Months } from "../utils/dataHelpers";
 import { DonutChart } from "./Charts";
-import { CashFlowChart, SpendingPieChart } from "./ModernCharts";
+const CashFlowChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.CashFlowChart })));
+const SpendingPieChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.SpendingPieChart })));
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn } from "./Shared";
 import { INCOME_METHODS, EXPENSE_METHODS } from "../constants/seedData";
@@ -187,7 +189,9 @@ export function Dashboard() {
         {getLast6Months(transactions).some(m => m.income > 0 || m.expense > 0) && (
           <div style={{ background: T.card, borderRadius: R.lg, padding: "14px", marginBottom: 14, boxShadow: SH.card }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 12 }}>📈 6-Month Cash Flow</div>
-            <CashFlowChart data={getLast6Months(transactions)} theme={theme} />
+            <Suspense fallback={<div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: T.inkSoft, fontSize: 12 }}>Loading analytics…</div>}>
+              <CashFlowChart data={getLast6Months(transactions)} theme={theme} />
+            </Suspense>
           </div>
         )}
 
@@ -203,7 +207,9 @@ export function Dashboard() {
           return (
             <div style={{ background: T.card, borderRadius: R.lg, padding: "14px", marginBottom: 14, boxShadow: SH.card }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 12 }}>🍩 This Month's Spending</div>
-              <SpendingPieChart data={slices} theme={theme} />
+              <Suspense fallback={<div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: T.inkSoft, fontSize: 12 }}>Loading analytics…</div>}>
+                <SpendingPieChart data={slices} theme={theme} />
+              </Suspense>
             </div>
           );
         })()}
@@ -212,7 +218,7 @@ export function Dashboard() {
           <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:13}}>Recent Transactions</div>
           {recent.length===0&&<div style={{textAlign:"center",color:"#C8D6D2",padding:"20px 0",fontSize:13}}>No transactions yet</div>}
           {recent.map(t=>(
-            <div key={t.id} onClick={()=>setSelectedTx(t)} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,cursor:"pointer"}}>
+            <motion.div key={t.id} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: recent.indexOf(t) * 0.045, duration: 0.28, ease: [0.22, 1, 0.36, 1] }} whileTap={{ scale: 0.985 }} onClick={()=>setSelectedTx(t)} className="smooth-card" style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,cursor:"pointer"}}>
               <div style={{width:40,height:40,borderRadius:R.sm,background:txBg(t),
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.icon}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -227,7 +233,7 @@ export function Dashboard() {
               <div style={{fontSize:15,fontWeight:700,color:txColor(t),flexShrink:0,fontFamily:THEME_CONFIG.font.money}}>
                 {txPrefix(t)}{fmt(t.amount)}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

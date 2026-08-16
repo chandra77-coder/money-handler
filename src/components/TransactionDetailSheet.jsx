@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sheet, FBtn } from "./Shared";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { useFinance } from "../context/FinanceContext";
@@ -123,12 +124,14 @@ export function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
       </div>
     </Sheet>
 
-    {viewPhoto && (
-      <div onClick={()=>setViewPhoto(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <img src={viewPhoto} alt="Photo" style={{maxWidth:"100%",maxHeight:"80%",borderRadius:R.lg}}/>
-        <button onClick={()=>setViewPhoto(null)} style={{position:"absolute",top:30,right:20,background:"white",border:"none",borderRadius:"50%",width:40,height:40,fontSize:20,fontWeight:700,cursor:"pointer"}}>✕</button>
-      </div>
-    )}
+    <AnimatePresence>
+      {viewPhoto && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={()=>setViewPhoto(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 26 }} src={viewPhoto} alt="Photo" style={{maxWidth:"100%",maxHeight:"80%",borderRadius:R.lg}}/>
+          <button onClick={()=>setViewPhoto(null)} style={{position:"absolute",top:30,right:20,background:"white",border:"none",borderRadius:"50%",width:40,height:40,fontSize:20,fontWeight:700,cursor:"pointer"}}>✕</button>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </>
   );
 }

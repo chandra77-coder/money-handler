@@ -4,7 +4,6 @@ import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { Sheet, FBtn, FInput, ToggleSwitch } from "./Shared";
 import { CategoryManager, TrashManager, UPIManager, AccountManager } from "./SettingsComponents";
 import { compressImage } from "../utils/formatters";
-import { generateTransactionReport } from "../utils/reportGenerator";
 
 export function Settings({ open, onClose }) {
   const { 
@@ -28,6 +27,11 @@ export function Settings({ open, onClose }) {
   }, [open]);
 
   const toggle = (key) => setSection(prev => prev === key ? null : key);
+
+  const handleGenerateReport = async () => {
+    const { generateTransactionReport } = await import("../utils/reportGenerator");
+    generateTransactionReport(transactions);
+  };
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -111,7 +115,7 @@ export function Settings({ open, onClose }) {
         {menuRow("🗑️", "Recently Deleted", "Restore items from trash", "trash")}
         {section === "trash" && <TrashManager />}
 
-        {menuRow("📄", "Generate Report", "Export transactions as PDF", null, () => generateTransactionReport(transactions))}
+        {menuRow("📄", "Generate Report", "Export transactions as PDF", null, handleGenerateReport)}
       </div>
     </Sheet>
   );
