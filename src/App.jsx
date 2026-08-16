@@ -441,7 +441,7 @@ function ToggleSwitch({ on, onChange }) {
   );
 }
 
-function TransactionDetailSheet({ tx, onClose, onDelete, onEdit, transactions, accounts }) {
+function TransactionDetailSheet({ tx, onClose, onDelete, onEdit, onPhotoChange, transactions, accounts }) {
   if (!tx) return null;
   const [viewPhoto, setViewPhoto] = useState(null);
   const color  = tx.type==="income" ? T.income : tx.type==="transfer" ? "#7B5EA7" : T.expense;
@@ -512,16 +512,10 @@ function TransactionDetailSheet({ tx, onClose, onDelete, onEdit, transactions, a
           <div style={{fontSize:13,fontWeight:700,color:T.inkSoft}}>PHOTO</div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          {tx.photo && (
-            <button onClick={() => setViewPhoto(tx.photo)} style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.teal500}`,background:T.mintSoft,color:T.teal700,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>👁️ View</button>
-          )}
+          <button onClick={() => tx.photo && setViewPhoto(tx.photo)} disabled={!tx.photo} style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${tx.photo ? T.teal500 : T.line}`,background:tx.photo?T.mintSoft:T.bgSoft,color:tx.photo?T.teal700:T.inkSoft,fontSize:12,fontWeight:700,cursor:tx.photo?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:5}}>👁️ View Photo</button>
           <label style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-            📷 Camera
-            <input type="file" accept="image/*" capture="environment" onChange={(e)=>{const f=e.target.files?.[0];if(!f)return;compressImage(f,(c)=>{onEdit({...tx,photo:c});onClose();});}} style={{display:"none"}}/>
-          </label>
-          <label style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-            🖼️ Gallery
-            <input type="file" accept="image/*" onChange={(e)=>{const f=e.target.files?.[0];if(!f)return;compressImage(f,(c)=>{onEdit({...tx,photo:c});onClose();});}} style={{display:"none"}}/>
+            📷 Add Photo
+            <input type="file" accept="image/*" onChange={(e)=>{const f=e.target.files?.[0];if(!f)return;compressImage(f,c=>{onPhotoChange?.(tx.id,c);e.target.value="";});}} style={{display:"none"}}/>
           </label>
         </div>
       </div>
@@ -728,6 +722,11 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
     setEditTxId(tx.id);
     setEditForm({ ...tx, amount: String(tx.amount) });
     setShowEditSheet(true);
+  };
+
+  const updateTxPhoto = (id, photo) => {
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, photo } : t));
+    setSelectedTx(prev => prev?.id === id ? { ...prev, photo } : prev);
   };
 
   const saveEdit = () => {
@@ -1029,7 +1028,7 @@ function Dashboard({ transactions, setTransactions, setTrash, loans, accounts, c
         </div>
       </div>
 
-      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit} transactions={transactions} accounts={accounts}/>
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit} onPhotoChange={updateTxPhoto} transactions={transactions} accounts={accounts}/>
     
       {/* Edit Sheet for Dashboard */}
       <Sheet open={showEditSheet} onClose={()=>{setShowEditSheet(false); setEditTxId(null);}}>
@@ -1099,6 +1098,7 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(makeEmptyTx);
   const [selectedTx, setSelectedTx] = useState(null);
+  const [viewPhoto, setViewPhoto] = useState(null);
   const [filterType, setFilterType] = useState("all");   // all | income | expense | transfer
   const [filterMonth, setFilterMonth] = useState("");     // "" = all, "YYYY-MM" = specific
 
@@ -1125,6 +1125,18 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
     setEditId(tx.id);
     setForm({ ...tx, amount: String(tx.amount) });
     setShowSheet(true);
+  };
+
+  const updateTxPhoto = (id, photo) => {
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, photo } : t));
+    setSelectedTx(prev => prev?.id === id ? { ...prev, photo } : prev);
+  };
+
+  const handleListPhoto = (id, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImage(file, compressed => updateTxPhoto(id, compressed));
+    e.target.value = "";
   };
 
   const save = () => {
@@ -1271,7 +1283,6 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
                         {t.type==="transfer"?`${t.account} → ${t.toAccount}`:t.category}
                       </div>
                       {t.recurringId&&<span style={{fontSize:9,background:T.mintSoft,color:T.teal700,borderRadius:R.pill,padding:"2px 6px",fontWeight:700,flexShrink:0}}>🔁</span>}
-                      {t.photo&&<span style={{fontSize:10,flexShrink:0}}>📸</span>}
                     </div>
                     <div style={{fontSize:11,color:T.inkSoft}}>
                       {t.type==="transfer"?"Transfer":`${t.account}${t.method?" · "+t.method:""}`}
@@ -1279,8 +1290,17 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
                     </div>
                     {t.note&&t.type!=="transfer"&&<div style={{fontSize:11,color:"#A8B8B3"}}>{t.note}</div>}
                   </div>
-                  <div style={{fontSize:15,fontWeight:700,color:txColor(t),flexShrink:0,fontFamily:THEME.font.money}}>
-                    {txPrefix(t)}{fmt(t.amount)}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
+                    <div style={{fontSize:15,fontWeight:700,color:txColor(t),fontFamily:THEME.font.money}}>
+                      {txPrefix(t)}{fmt(t.amount)}
+                    </div>
+                    <div style={{display:"flex",gap:5}}>
+                      {t.photo && <button onClick={e=>{e.stopPropagation();setViewPhoto(t.photo);}} aria-label="View transaction photo" style={{width:28,height:26,padding:0,border:`1px solid ${T.teal500}`,borderRadius:7,background:T.mintSoft,color:T.teal700,fontSize:13,cursor:"pointer"}}>👁️</button>}
+                      <label onClick={e=>e.stopPropagation()} aria-label={t.photo?"Replace transaction photo":"Add transaction photo"} style={{width:28,height:26,padding:0,border:`1px solid ${T.line}`,borderRadius:7,background:T.bgSoft,color:T.teal500,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        📷
+                        <input type="file" accept="image/*" onChange={e=>handleListPhoto(t.id,e)} style={{display:"none"}}/>
+                      </label>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1378,7 +1398,14 @@ function Transactions({ transactions, setTransactions, setTrash, accounts, categ
         <FBtn onClick={save} style={{width:"100%",padding:"15px"}}>Save Transaction</FBtn>
       </Sheet>
 
-      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit} transactions={transactions} accounts={accounts}/>
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTx} onEdit={openEdit} onPhotoChange={updateTxPhoto} transactions={transactions} accounts={accounts}/>
+
+      {viewPhoto && (
+        <div onClick={()=>setViewPhoto(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <img src={viewPhoto} alt="Transaction photo" style={{maxWidth:"100%",maxHeight:"85%",objectFit:"contain",borderRadius:R.lg,boxShadow:"0 0 30px rgba(0,0,0,0.5)"}}/>
+          <button onClick={()=>setViewPhoto(null)} aria-label="Close photo" style={{position:"absolute",top:30,right:20,background:"white",border:"none",borderRadius:"50%",width:40,height:40,fontSize:20,fontWeight:700,cursor:"pointer"}}>✕</button>
+        </div>
+      )}
 
       {/* Delete Confirm Modal */}
       {delTxId && (
@@ -1707,6 +1734,11 @@ function genWorkCode(existingCodes) {
 const makeEmptyWork = () => ({ type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null });
 const EMPTY_WORK = makeEmptyWork(); // static fallback
 
+// Spend totals are adjusted by the amount delta on edits. This prevents an edit
+// from deducting the entire new amount a second time.
+const applySpendAmountChange = (currentTotal, oldAmount, newAmount) =>
+  currentTotal - (newAmount - oldAmount);
+
 function Work({ workRecords, setWorkRecords, workNames }) {
   const [search, setSearch] = useState("");
   const [showSheet, setShowSheet] = useState(false);
@@ -1715,6 +1747,16 @@ function Work({ workRecords, setWorkRecords, workNames }) {
   const [delId, setDelId] = useState(null);
   const [viewPhoto, setViewPhoto] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const getWorkBalance = records => records.reduce((total, record) =>
+    total + (record.type === "spend" ? -(Number(record.amount) || 0) : (Number(record.amount) || 0)), 0
+  );
+  const [workBalance, setWorkBalance] = useState(() => getWorkBalance(workRecords));
+
+  // Keep the displayed total correct if records are restored from backup or
+  // otherwise changed outside this component.
+  useEffect(() => {
+    setWorkBalance(getWorkBalance(workRecords));
+  }, [workRecords]);
 
   const handleSearch = (e) => {
     const v = e.target.value;
@@ -1772,14 +1814,33 @@ function Work({ workRecords, setWorkRecords, workNames }) {
     const parsedAmount = parseFloat(form.amount) || 0;
     const entry = { ...form, amount: parsedAmount, code: form.code || "" };
     if (editId) {
+      const oldRecord = workRecords.find(record => record.id === editId);
+      const oldAmount = Number(oldRecord?.amount) || 0;
+      if (entry.type === "spend") {
+        // Update the balance by only the change from the old spend to the new spend.
+        setWorkBalance(currentTotal => applySpendAmountChange(currentTotal, oldAmount, parsedAmount));
+      } else {
+        setWorkBalance(currentTotal => currentTotal + (parsedAmount - oldAmount));
+      }
       setWorkRecords(prev => prev.map(w => w.id === editId ? { ...entry, id: editId } : w));
     } else {
+      if (entry.type === "spend") {
+        // First-time spend: deduct the full amount because there is no old amount.
+        setWorkBalance(currentTotal => applySpendAmountChange(currentTotal, 0, parsedAmount));
+      } else {
+        setWorkBalance(currentTotal => currentTotal + parsedAmount);
+      }
       setWorkRecords(prev => [{ ...entry, id: Date.now() }, ...prev]);
     }
     setShowSheet(false); setEditId(null);
   };
 
   const remove = (id) => {
+    const record = workRecords.find(item => item.id === id);
+    if (record) {
+      const amount = Number(record.amount) || 0;
+      setWorkBalance(currentTotal => record.type === "spend" ? currentTotal + amount : currentTotal - amount);
+    }
     setWorkRecords(prev => prev.filter(w => w.id !== id));
     setDelId(null);
   };
@@ -1831,6 +1892,10 @@ function Work({ workRecords, setWorkRecords, workNames }) {
             <div>
               <div style={{ fontSize: 10, opacity: .6, marginBottom: 2 }}>🔴 UNPAID</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#FCA5A5" }}>{fmt(unpaidAmount)} <span style={{fontSize:11, opacity:.8, fontWeight:500}}>({unpaidCount} work)</span></div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, opacity: .6, marginBottom: 2 }}>💰 WORK BALANCE</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.gold }}>{fmt(workBalance)}</div>
             </div>
           </div>
         </div>
@@ -1905,38 +1970,36 @@ function Work({ workRecords, setWorkRecords, workNames }) {
 
               {isExpanded && (
                 <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}`, animation: "fadeIn 0.2s ease" }}>
-                  {/* Row 1: Edit + Delete side by side */}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                    <button onClick={() => openEdit(record)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✏️ Edit</button>
+                  {/* Row 1: small photo thumbnail + Delete */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    {record.photo ? (
+                      <button onClick={() => setViewPhoto(record.photo)} aria-label="View work photo" style={{ width: 52, height: 52, padding: 0, border: `1.5px solid ${T.teal500}`, borderRadius: R.sm, background: T.bgSoft, cursor: "pointer", overflow: "hidden", flexShrink: 0 }}>
+                        <img src={record.photo} alt="Work thumbnail" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      </button>
+                    ) : (
+                      <div style={{ width: 52, height: 52, borderRadius: R.sm, border: `1.5px dashed ${T.line}`, background: T.bgSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>📷</div>
+                    )}
                     <button onClick={() => setDelId(record.id)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: "1.5px solid #FBD5D5", background: T.expenseSoft, color: T.expense, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>🗑 Delete</button>
                   </div>
 
-                  {/* Row 2: View Photo + Camera + Gallery */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {record.photo && (
-                      <button onClick={() => setViewPhoto(record.photo)} style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.teal500}`, background: T.mintSoft, color: T.teal700, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View</button>
-                    )}
-                    <label style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      📷 Camera
-                      <input type="file" accept="image/*" capture="environment" onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        compressImage(file, (compressed) => {
-                          setWorkRecords(prev => prev.map(w => w.id === record.id ? { ...w, photo: compressed } : w));
-                        });
-                      }} style={{ display: "none" }} />
-                    </label>
-                    <label style={{ flex: 1, minWidth: 80, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      🖼️ Gallery
+                  {/* Row 2: View Photo + Add Photo */}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => record.photo && setViewPhoto(record.photo)} disabled={!record.photo} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${record.photo ? T.teal500 : T.line}`, background: record.photo ? T.mintSoft : T.bgSoft, color: record.photo ? T.teal700 : T.inkSoft, fontSize: 12, fontWeight: 700, cursor: record.photo ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>👁️ View Photo</button>
+                    <label style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      📷 Add Photo
                       <input type="file" accept="image/*" onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         compressImage(file, (compressed) => {
                           setWorkRecords(prev => prev.map(w => w.id === record.id ? { ...w, photo: compressed } : w));
                         });
+                        e.target.value = "";
                       }} style={{ display: "none" }} />
                     </label>
                   </div>
+
+                  {/* Edit is available only after the card is expanded. */}
+                  <button onClick={() => openEdit(record)} style={{ width: "100%", marginTop: 10, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${T.line}`, background: "#F0F6FF", color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✏️ Edit Entry</button>
                 </div>
               )}
             </div>
@@ -1960,8 +2023,8 @@ function Work({ workRecords, setWorkRecords, workNames }) {
         <div style={{ position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, backdropFilter: "blur(2px)" }}>
           <div style={{ background: T.card, borderRadius: R.xl, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: SH.raised }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Delete this work entry?</div>
-            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>Are you sure you want to delete this work entry? This cannot be undone.</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: T.ink }}>Are you sure you want to delete this work entry? This cannot be undone.</div>
+            <div style={{ fontSize: 13, color: T.inkSoft, marginBottom: 22 }}>This action cannot be undone.</div>
             <div style={{ display: "flex", gap: 10 }}>
               <FBtn onClick={() => setDelId(null)} outline color={T.inkSoft} style={{ flex: 1 }}>Cancel</FBtn>
               <FBtn onClick={() => remove(delId)} bg={G.expense} style={{ flex: 1 }}>Delete</FBtn>
