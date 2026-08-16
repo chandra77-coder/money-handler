@@ -29,17 +29,38 @@ export const GlobalStyles = ({ themeMode }) => {
         --inkSoft: ${T.inkSoft};
         --line: ${T.line};
         --card: ${T.card};
+        --cyberGlow: ${T.cyberGlow || "none"};
+        --grid-line: ${themeMode === "future" || themeMode === "system" ? "rgba(0,217,255,0.055)" : "transparent"};
       }
       
       body {
         margin: 0;
         padding: 0;
         background-color: var(--bg);
+        background-image: radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--teal500) 12%, transparent), transparent 42%), linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+        background-size: auto, 28px 28px, 28px 28px;
+        background-attachment: fixed;
         color: var(--ink);
         font-family: ${THEME_CONFIG.font.body};
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      #root {
+        min-height: 100vh;
+        position: relative;
+        isolation: isolate;
+      }
+
+      #root::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+        opacity: ${themeMode === "future" || themeMode === "system" ? 0.42 : 0};
+        background: radial-gradient(circle at 10% 25%, rgba(181,156,255,0.08), transparent 24%), radial-gradient(circle at 92% 68%, rgba(0,217,255,0.08), transparent 26%);
       }
 
       * {
@@ -124,9 +145,24 @@ export const GlobalStyles = ({ themeMode }) => {
 
       .glass-card {
         background: ${T.glass};
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(16px) saturate(140%);
+        -webkit-backdrop-filter: blur(16px) saturate(140%);
         border: 1px solid ${T.glassBorder};
+        box-shadow: var(--cyberGlow);
+      }
+
+      .cyber-scanline {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .cyber-scanline::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(180deg, transparent 0, transparent 4px, rgba(255,255,255,0.018) 5px);
+        mix-blend-mode: screen;
       }
       
       ::-webkit-scrollbar {

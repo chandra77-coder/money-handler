@@ -138,7 +138,7 @@ export function Settings({ open, onClose }) {
         {menuRow("🌓", "Theme", `Currently: ${theme}`, "theme")}
         {section === "theme" && (
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {["light", "dark", "system"].map(m => (
+            {["future", "light", "dark", "system"].map(m => (
               <button key={m} onClick={() => setTheme(m)} style={{ flex: 1, padding: "10px", borderRadius: R.sm, border: `1.5px solid ${theme === m ? T.teal500 : T.line}`, background: theme === m ? T.mintSoft : T.card, color: theme === m ? T.teal700 : T.inkSoft, fontWeight: 700, fontSize: 12, textTransform: "capitalize" }}>{m}</button>
             ))}
           </div>

@@ -36,6 +36,44 @@ export const THEMES = {
       nav:     "linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.99))",
     },
   },
+  future: {
+    colors: {
+      bg:           "#050816",
+      bgSoft:       "#0A1024",
+      teal900:      "#020617",
+      teal800:      "#0B1834",
+      teal700:      "#DDF8FF",
+      teal600:      "#6AE6FF",
+      teal500:      "#00D9FF",
+      mint:         "#5CFFC8",
+      mintSoft:     "rgba(92,255,200,0.12)",
+      gold:         "#FFD166",
+      goldSoft:     "rgba(255,209,102,0.14)",
+      income:       "#5CFFC8",
+      incomeSoft:   "rgba(92,255,200,0.12)",
+      expense:      "#FF6B9D",
+      expenseSoft:  "rgba(255,107,157,0.13)",
+      transfer:     "#B59CFF",
+      transferSoft: "rgba(181,156,255,0.14)",
+      ink:          "#EFFBFF",
+      inkSoft:      "#8FA8C2",
+      line:         "rgba(115,219,255,0.16)",
+      card:         "rgba(10,18,39,0.78)",
+      glass:        "rgba(0,217,255,0.08)",
+      glassBorder:  "rgba(0,217,255,0.24)",
+      glassStrong:  "rgba(12,31,62,0.78)",
+      cyberGlow:   "0 0 24px rgba(0,217,255,0.18), 0 0 60px rgba(181,156,255,0.08)",
+    },
+    gradient: {
+      header:  "radial-gradient(circle at 85% 10%,rgba(0,217,255,0.28),transparent 32%), radial-gradient(circle at 12% 100%,rgba(181,156,255,0.22),transparent 38%), linear-gradient(135deg,#050816 0%,#0B1834 52%,#11113A 100%)",
+      primary: "linear-gradient(135deg,#00D9FF 0%,#6C63FF 100%)",
+      gold:    "linear-gradient(135deg,#FFD166 0%,#FF8F70 100%)",
+      income:  "linear-gradient(135deg,#5CFFC8,#00D9FF)",
+      expense: "linear-gradient(135deg,#FF6B9D,#8F6BFF)",
+      transfer:"linear-gradient(135deg,#B59CFF,#6C63FF)",
+      nav:     "linear-gradient(180deg,rgba(5,8,22,0.82),rgba(5,8,22,0.98))",
+    },
+  },
   dark: {
     colors: {
       bg:           "#0A1929",
@@ -75,6 +113,8 @@ export const THEMES = {
   },
 };
 
+THEMES.system = THEMES.future;
+
 export const THEME_CONFIG = {
   shadow: {
     soft:    "0 2px 10px rgba(26,58,92,0.08)",
@@ -83,6 +123,7 @@ export const THEME_CONFIG = {
     button:  "0 6px 16px rgba(45,106,159,0.35)",
     nav:     "0 -4px 20px rgba(26,58,92,0.10)",
     glow:    "0 0 0 1px rgba(255,255,255,0.18) inset",
+    cyber:   "0 0 24px rgba(0,217,255,0.18), 0 0 60px rgba(181,156,255,0.08)",
   },
   radius: { sm:10, md:14, lg:18, xl:22, xxl:28, pill:999 },
   font: {

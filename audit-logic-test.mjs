@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { advanceRecurringDate, applySpendAmountChange, createId, getLast6Months, smartSearch, toAmount } from "./src/utils/dataHelpers.js";
 import { todayStr } from "./src/utils/formatters.js";
+import { parseFinanceCommand } from "./src/utils/commandParser.js";
+import { buildForecast } from "./src/utils/forecast.js";
 
 assert.equal(toAmount("1250.50"), 1250.5);
 assert.equal(toAmount("not-a-number"), 0);
@@ -16,4 +18,16 @@ assert.equal(months.at(-1).income, 100);
 assert.equal(months.at(-1).isCurrentMonth, true);
 assert.equal(advanceRecurringDate("2026-01-31", "monthly"), "2026-02-28");
 assert.equal(advanceRecurringDate("2026-01-02", "weekly"), "2026-01-09");
+const parsedExpense = parseFinanceCommand("spent ₹250 on Food at Main Bank", { categories: { expense: [{ l: "Food", icon: "🍛" }], income: [] }, accounts: [{ name: "Main Bank" }] });
+assert.equal(parsedExpense.ok, true);
+assert.equal(parsedExpense.type, "expense");
+assert.equal(parsedExpense.amount, 250);
+assert.equal(parsedExpense.category, "Food");
+assert.equal(parsedExpense.account, "Main Bank");
+const parsedIncome = parseFinanceCommand("earned 5000 salary", { categories: { income: [{ l: "Salary", icon: "💼" }], expense: [] }, accounts: [{ name: "Main Bank" }] });
+assert.equal(parsedIncome.type, "income");
+assert.equal(parsedIncome.amount, 5000);
+const forecast = buildForecast({ currentBalance: 1000, transactions: [{ type: "income", amount: "500", date: todayStr() }, { type: "expense", amount: "100", date: todayStr() }], recurring: [{ type: "income", amount: 100, frequency: "monthly", active: true }] });
+assert.equal(forecast.points.length, 7);
+assert.equal(forecast.monthlyNet, 233.33333333333334);
 console.log("Audit logic tests passed.");

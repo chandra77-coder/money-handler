@@ -7,6 +7,8 @@ import { sortByDateDesc, monthYearStr, getLast6Months, progressPercent, toAmount
 const CashFlowChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.CashFlowChart })));
 const SpendingPieChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.SpendingPieChart })));
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
+import { ForecastPanel } from "./ForecastPanel";
+import { CommandBar } from "./CommandBar";
 import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn } from "./Shared";
 import { INCOME_METHODS, EXPENSE_METHODS } from "../constants/seedData";
 
@@ -94,6 +96,7 @@ export function Dashboard({ onOpenSettings }) {
       </div>
 
       <div style={{padding:"0 12px",marginTop:12}}>
+        <CommandBar />
         {showReminder && (
           <div style={{background:T.goldSoft,borderRadius:R.lg,padding:"12px 14px",
             marginBottom:14,boxShadow:SH.card,display:"flex",alignItems:"center",gap:10}}>
@@ -120,6 +123,8 @@ export function Dashboard({ onOpenSettings }) {
             ))}
           </div>
         )}
+
+        <ForecastPanel />
 
         {savingsGoals.length > 0 && (
           <div style={{ background: T.card, borderRadius: R.lg, padding: "13px", marginBottom: 14, boxShadow: SH.card }}>
