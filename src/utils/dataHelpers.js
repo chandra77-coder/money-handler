@@ -11,10 +11,10 @@ export const getLast6Months = (transactions) => {
   const res = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toISOString().slice(0, 7); // YYYY-MM
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; // YYYY-MM in local time
     const label = d.toLocaleDateString("en-IN", { month: "short" });
-    const inc = transactions.filter(t => t.type === "income" && (t.date || "").startsWith(key)).reduce((s, t) => s + t.amount, 0);
-    const exp = transactions.filter(t => t.type === "expense" && (t.date || "").startsWith(key)).reduce((s, t) => s + t.amount, 0);
+    const inc = transactions.filter(t => t.type === "income" && (t.date || "").startsWith(key)).reduce((s, t) => s + toAmount(t.amount), 0);
+    const exp = transactions.filter(t => t.type === "expense" && (t.date || "").startsWith(key)).reduce((s, t) => s + toAmount(t.amount), 0);
     res.push({ key, label, income: inc, expense: exp, isCurrentMonth: i === 0 });
   }
   return res;
@@ -53,4 +53,11 @@ export const smartSearch = (items, query, fields) => {
   return items.filter(item => 
     fields.some(field => (item[field] || "").toString().toLowerCase().includes(q))
   );
+};
+
+export const toAmount = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+export const createId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };

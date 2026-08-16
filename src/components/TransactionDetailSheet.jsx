@@ -4,6 +4,7 @@ import { Sheet, FBtn } from "./Shared";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { useFinance } from "../context/FinanceContext";
 import { fmt, fmtDateLong, fmtTime, compressImage } from "../utils/formatters";
+import { toAmount } from "../utils/dataHelpers";
 
 export function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
   const { theme, transactions, accounts, updateTransaction } = useFinance();
@@ -29,15 +30,15 @@ export function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
       (t.account === tx.account || t.toAccount === tx.account) &&
       (t.createdAt || 0) < (tx.createdAt || 1)
     );
-    const income  = prior.filter(t => t.type==="income"   && t.account===tx.account).reduce((s,t)=>s+t.amount,0);
-    const expense = prior.filter(t => t.type==="expense"  && t.account===tx.account).reduce((s,t)=>s+t.amount,0);
-    const tOut    = prior.filter(t => t.type==="transfer" && t.account===tx.account).reduce((s,t)=>s+t.amount,0);
-    const tIn     = prior.filter(t => t.type==="transfer" && t.toAccount===tx.account).reduce((s,t)=>s+t.amount,0);
-    return acc.opening + income - expense - tOut + tIn;
+    const income  = prior.filter(t => t.type==="income"   && t.account===tx.account).reduce((s,t)=>s+toAmount(t.amount),0);
+    const expense = prior.filter(t => t.type==="expense"  && t.account===tx.account).reduce((s,t)=>s+toAmount(t.amount),0);
+    const tOut    = prior.filter(t => t.type==="transfer" && t.account===tx.account).reduce((s,t)=>s+toAmount(t.amount),0);
+    const tIn     = prior.filter(t => t.type==="transfer" && t.toAccount===tx.account).reduce((s,t)=>s+toAmount(t.amount),0);
+    return toAmount(acc.opening) + income - expense - tOut + tIn;
   })();
   
   const balanceAfter = balanceBefore !== null
-    ? (tx.type==="income" ? balanceBefore + tx.amount : balanceBefore - tx.amount)
+    ? (tx.type==="income" ? balanceBefore + toAmount(tx.amount) : balanceBefore - toAmount(tx.amount))
     : null;
 
   const handlePhotoChange = (e) => {
@@ -90,7 +91,7 @@ export function TransactionDetailSheet({ tx, onClose, onDelete, onEdit }) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={() => tx.photo && setViewPhoto(tx.photo)} disabled={!tx.photo} style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${tx.photo ? T.teal500 : T.line}`,background:tx.photo?T.mintSoft:T.bgSoft,color:tx.photo?T.teal700:T.inkSoft,fontSize:12,fontWeight:700,cursor:tx.photo?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:5}}>👁️ View Photo</button>
-          <label style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:pointer,display:"flex",alignItems:"center",gap:5}}>
+          <label style={{padding:"8px 12px",borderRadius:R.sm,border:`1.5px solid ${T.line}`,background:T.card,color:T.teal500,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
             📷 Add Photo
             <input type="file" accept="image/*" onChange={handlePhotoChange} style={{display:"none"}}/>
           </label>

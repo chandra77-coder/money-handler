@@ -7,7 +7,10 @@ export const fmtDateLong = (dateStr) => {
 
 export const fmtTime = (ms) => ms ? new Date(ms).toLocaleTimeString("en-IN", { hour:"numeric", minute:"2-digit", hour12:true }) : null;
 
-export const todayStr = () => new Date().toISOString().slice(0, 10);
+export const todayStr = (date = new Date()) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
 
 export const compressImage = (file, callback) => {
   const reader = new FileReader();

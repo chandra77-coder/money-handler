@@ -4,15 +4,18 @@ import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { Sheet, FBtn, FInput, ToggleSwitch } from "./Shared";
 import { CategoryManager, TrashManager, UPIManager, AccountManager } from "./SettingsComponents";
 import { compressImage } from "../utils/formatters";
+import { PinScreen } from "./PinScreen";
 
 export function Settings({ open, onClose }) {
   const { 
-    profile, setProfile, theme, setTheme, pinEnabled, setPinEnabled, 
+    profile, setProfile, theme, setTheme, pin, setPin, pinEnabled, setPinEnabled,
+    notifyEnabled, setNotifyEnabled,
     openingBalance, setOpeningBalance, declaredAmount, setDeclaredAmount,
     goalAmount, setGoalAmount, manualCheck, setManualCheck, transactions
   } = useFinance();
 
   const [section, setSection] = useState(null);
+  const [showPinSetup, setShowPinSetup] = useState(false);
   const currentTheme = THEMES[theme] || THEMES.light;
   const T = currentTheme.colors;
   const G = currentTheme.gradient;
@@ -23,7 +26,7 @@ export function Settings({ open, onClose }) {
   const [editingProfile, setEditingProfile] = useState(false);
 
   useEffect(() => {
-    if (!open) { setSection(null); setEditingProfile(false); }
+    if (!open) { setSection(null); setEditingProfile(false); setShowPinSetup(false); }
   }, [open]);
 
   const toggle = (key) => setSection(prev => prev === key ? null : key);
@@ -57,6 +60,7 @@ export function Settings({ open, onClose }) {
   const initials = (profile.name || "U").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
+    <>
     <Sheet open={open} onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0 18px", borderBottom: `1px solid ${T.line}`, marginBottom: 16 }}>
         <div style={{ position: "relative", flexShrink: 0 }}>
@@ -93,13 +97,29 @@ export function Settings({ open, onClose }) {
         {menuRow("💳", "UPI Manager", "Manage your UPI IDs & QR codes", "upi")}
         {section === "upi" && <UPIManager />}
 
+        {menuRow("🔔", "Daily Reminder", notifyEnabled ? "Remind me to log today's activity" : "Reminders are off", "reminder")}
+        {section === "reminder" && (
+          <div style={{ padding: "10px", background: T.bgSoft, borderRadius: R.md, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Show dashboard reminder</span>
+              <ToggleSwitch on={notifyEnabled} onChange={setNotifyEnabled} />
+            </div>
+          </div>
+        )}
+
         {menuRow("🔒", "PIN Lock", pinEnabled ? "App is protected" : "Enable extra security", "pin")}
         {section === "pin" && (
           <div style={{ padding: "10px", background: T.bgSoft, borderRadius: R.md, marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Enable PIN Lock</span>
-              <ToggleSwitch on={pinEnabled} onChange={setPinEnabled} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{pin ? "PIN Lock" : "Set a PIN first"}</span>
+              <ToggleSwitch on={pinEnabled && !!pin} onChange={(enabled) => {
+                if (enabled && !pin) setShowPinSetup(true);
+                else setPinEnabled(enabled);
+              }} />
             </div>
+            <button onClick={() => setShowPinSetup(true)} style={{ width: "100%", padding: "9px 10px", borderRadius: R.sm, border: `1px solid ${T.line}`, background: T.card, color: T.teal500, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {pin ? "Change PIN" : "Set PIN"}
+            </button>
           </div>
         )}
 
@@ -118,5 +138,7 @@ export function Settings({ open, onClose }) {
         {menuRow("📄", "Generate Report", "Export transactions as PDF", null, handleGenerateReport)}
       </div>
     </Sheet>
+    {showPinSetup && <PinScreen mode="set" onSuccess={(newPin) => { setPin(newPin); setPinEnabled(true); setShowPinSetup(false); }} onCancel={() => setShowPinSetup(false)} />}
+  </>
   );
 }

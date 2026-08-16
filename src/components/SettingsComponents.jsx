@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { useFinance } from "../context/FinanceContext";
 import { compressImage } from "../utils/formatters";
+import { createId } from "../utils/dataHelpers";
 
 export function CategoryManager() {
   const { categories, setCategories, setTrash, theme } = useFinance();
@@ -22,6 +23,11 @@ export function CategoryManager() {
 
   const saveEdit = () => {
     if (!editForm.l.trim() || !editForm.icon.trim()) return;
+    const duplicate = categories[editingType].some((category, index) => index !== editingIdx && category.l.trim().toLowerCase() === editForm.l.trim().toLowerCase());
+    if (duplicate) {
+      alert("This category already exists!");
+      return;
+    }
     const updated = [...categories[editingType]];
     updated[editingIdx] = editForm;
     setCategories({...categories, [editingType]: updated});
@@ -100,27 +106,39 @@ export function CategoryManager() {
 }
 
 export function TrashManager() {
-  const { trash, setTrash, setTransactions, setLoans, setCategories, theme } = useFinance();
+  const { trash, setTrash, setTransactions, setLoans, setWorkRecords, setCategories, theme } = useFinance();
   const T = (THEMES[theme] || THEMES.light).colors;
   const R = THEME_CONFIG.radius;
   const SH = THEME_CONFIG.shadow;
-
   const [activeTab, setActiveTab] = useState("transactions");
 
-  const restoreTransaction = (tx) => {
-    setTransactions(prev => [...prev, tx]);
-    setTrash(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== tx.id) }));
+  const restoreItem = (collection, setter, item) => {
+    setter(prev => prev.some(entry => entry.id === item.id) ? prev : [item, ...prev]);
+    setTrash(prev => ({ ...prev, [collection]: prev[collection].filter(entry => entry.id !== item.id) }));
   };
-
-  const deleteTransactionPermanently = (id) => {
-    setTrash(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+  const permanentlyDelete = (collection, id) => setTrash(prev => ({ ...prev, [collection]: prev[collection].filter(item => item.id !== id) }));
+  const restoreCategory = (type, category) => {
+    setCategories(prev => ({ ...prev, [type]: prev[type].some(item => item.l === category.l) ? prev[type] : [...prev[type], category] }));
+    setTrash(prev => ({ ...prev, categories: { ...prev.categories, [type]: prev.categories[type].filter(item => item.l !== category.l) } }));
   };
+  const permanentlyDeleteCategory = (type, label) => setTrash(prev => ({ ...prev, categories: { ...prev.categories, [type]: prev.categories[type].filter(item => item.l !== label) } }));
+  const emptyTrash = () => setTrash({ transactions: [], loans: [], work: [], categories: { income: [], expense: [] } });
 
-  const emptyTrash = () => {
-    setTrash({ transactions: [], loans: [], work: [], categories: { income: [], expense: [] } });
-  };
-
-  const hasItems = trash.transactions.length > 0 || trash.loans.length > 0 || (trash.categories?.income?.length || 0) > 0 || (trash.categories?.expense?.length || 0) > 0;
+  const categoryCount = (trash.categories?.income?.length || 0) + (trash.categories?.expense?.length || 0);
+  const hasItems = trash.transactions.length + trash.loans.length + trash.work.length + categoryCount > 0;
+  const tabs = ["transactions", "loans", "work", "categories"];
+  const renderEmpty = (label) => <div style={{fontSize:12,color:T.inkSoft,textAlign:"center",padding:"20px"}}>No deleted {label}</div>;
+  const renderRecord = (collection, item, label, icon, setter) => (
+    <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+      <span style={{fontSize:18}}>{item.icon || icon}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.category || item.name || label}</div>
+        <div style={{fontSize:10,color:T.inkSoft}}>{item.date || ""}{item.amount !== undefined ? ` · ₹${item.amount}` : ""}</div>
+      </div>
+      <button onClick={() => restoreItem(collection, setter, item)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+      <button onClick={() => permanentlyDelete(collection, item.id)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>Delete</button>
+    </div>
+  );
 
   return (
     <div style={{background:T.bgSoft,borderRadius:R.lg,padding:"12px",marginBottom:12}}>
@@ -128,33 +146,20 @@ export function TrashManager() {
         <div style={{fontSize:14,fontWeight:700,color:T.ink}}>Recently Deleted</div>
         {hasItems && <button onClick={emptyTrash} style={{fontSize:11,color:T.expense,background:"none",border:"none",fontWeight:700,cursor:"pointer"}}>Empty Trash</button>}
       </div>
-
       <div style={{display:"flex",gap:8,marginBottom:15,overflowX:"auto",paddingBottom:5}}>
-        {["transactions", "loans", "categories"].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding:"6px 12px",borderRadius:R.sm,border:"none",fontSize:11,fontWeight:700,
-            background:activeTab===tab?T.teal500:T.card,color:activeTab===tab?"white":T.inkSoft,
-            cursor:"pointer",textTransform:"capitalize"
-          }}>{tab}</button>
-        ))}
+        {tabs.map(tab => <button key={tab} onClick={() => setActiveTab(tab)} style={{padding:"6px 12px",borderRadius:R.sm,border:"none",fontSize:11,fontWeight:700,background:activeTab===tab?T.teal500:T.card,color:activeTab===tab?"white":T.inkSoft,cursor:"pointer",textTransform:"capitalize"}}>{tab}</button>)}
       </div>
-
       <div style={{maxHeight:300,overflowY:"auto"}}>
-        {activeTab === "transactions" && (
-          trash.transactions.length === 0 ? <div style={{fontSize:12,color:T.inkSoft,textAlign:"center",padding:"20px"}}>No deleted transactions</div> :
-          trash.transactions.map(tx => (
-            <div key={tx.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
-              <span style={{fontSize:18}}>{tx.icon}</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{tx.category}</div>
-                <div style={{fontSize:10,color:T.inkSoft}}>{tx.date} · ₹{tx.amount}</div>
-              </div>
-              <button onClick={() => restoreTransaction(tx)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
-              <button onClick={() => deleteTransactionPermanently(tx.id)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>Delete</button>
-            </div>
-          ))
-        )}
-        {/* Other tabs omitted for brevity, but should be implemented similarly */}
+        {activeTab === "transactions" && (trash.transactions.length ? trash.transactions.map(item => renderRecord("transactions", item, "Transaction", "💳", setTransactions)) : renderEmpty("transactions"))}
+        {activeTab === "loans" && (trash.loans.length ? trash.loans.map(item => renderRecord("loans", item, "Loan", "🤝", setLoans)) : renderEmpty("loans"))}
+        {activeTab === "work" && (trash.work.length ? trash.work.map(item => renderRecord("work", item, "Work entry", "💼", setWorkRecords)) : renderEmpty("work entries"))}
+        {activeTab === "categories" && (categoryCount ? ["income", "expense"].flatMap(type => trash.categories[type].map(category => (
+          <div key={`${type}-${category.l}`} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"10px 12px",borderRadius:12,background:T.card,boxShadow:SH.soft}}>
+            <span style={{fontSize:18}}>{category.icon}</span><div style={{flex:1,fontSize:13,fontWeight:600,color:T.ink}}>{category.l} <span style={{fontSize:10,color:T.inkSoft}}>({type})</span></div>
+            <button onClick={() => restoreCategory(type, category)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.incomeSoft,color:T.income,fontSize:11,fontWeight:600,cursor:"pointer"}}>Restore</button>
+            <button onClick={() => permanentlyDeleteCategory(type, category.l)} style={{padding:"5px 8px",borderRadius:6,border:"none",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>Delete</button>
+          </div>
+        ))) : renderEmpty("categories"))}
       </div>
     </div>
   );
@@ -183,7 +188,7 @@ export function UPIManager() {
       setUpiList(prev => prev.map(u => u.id === editId ? { ...form, id: editId } : u));
       setEditId(null);
     } else {
-      setUpiList(prev => [...prev, { ...form, id: Date.now() }]);
+      setUpiList(prev => [...prev, { ...form, id: createId() }]);
     }
     setForm(EMPTY_UPI);
   };
@@ -222,7 +227,7 @@ export function UPIManager() {
 }
 
 export function AccountManager() {
-  const { accounts, setAccounts, theme } = useFinance();
+  const { accounts, setAccounts, transactions, setTransactions, theme } = useFinance();
   const T = (THEMES[theme] || THEMES.light).colors;
   const R = THEME_CONFIG.radius;
   const SH = THEME_CONFIG.shadow;
@@ -232,8 +237,16 @@ export function AccountManager() {
 
   const save = () => {
     if (!form.name || !form.icon) return;
-    const entry = { ...form, id: editId || Date.now(), opening: parseFloat(form.opening) || 0 };
+    const entry = { ...form, id: editId || createId(), opening: parseFloat(form.opening) || 0 };
     if (editId) {
+      const previous = accounts.find(a => a.id === editId);
+      if (previous && previous.name !== entry.name) {
+        setTransactions(prev => prev.map(tx => ({
+          ...tx,
+          account: tx.account === previous.name ? entry.name : tx.account,
+          toAccount: tx.toAccount === previous.name ? entry.name : tx.toAccount,
+        })));
+      }
       setAccounts(prev => prev.map(a => a.id === editId ? entry : a));
       setEditId(null);
     } else {
@@ -253,7 +266,14 @@ export function AccountManager() {
             <div style={{fontSize:10,color:T.inkSoft}}>{acc.type} · Opening: ₹{acc.opening}</div>
           </div>
           <button onClick={() => { setEditId(acc.id); setForm({ ...acc, opening: String(acc.opening) }); }} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${T.line}`,background:T.bgSoft,color:T.teal500,fontSize:11,fontWeight:600,cursor:"pointer"}}>✏️</button>
-          <button onClick={() => setAccounts(prev => prev.filter(a => a.id !== acc.id))} style={{padding:"5px 8px",borderRadius:6,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
+          <button onClick={() => {
+            const inUse = transactions.some(tx => tx.account === acc.name || tx.toAccount === acc.name);
+            if (inUse) {
+              alert("This account is used by existing transactions. Rename it instead of deleting it, or move those transactions first.");
+              return;
+            }
+            setAccounts(prev => prev.filter(a => a.id !== acc.id));
+          }} style={{padding:"5px 8px",borderRadius:6,border:"1.5px solid #FBD5D5",background:T.expenseSoft,color:T.expense,fontSize:11,fontWeight:600,cursor:"pointer"}}>🗑</button>
         </div>
       ))}
       <div style={{background:T.card,borderRadius:12,padding:"14px",marginTop:10,boxShadow:SH.soft}}>

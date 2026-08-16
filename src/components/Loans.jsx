@@ -3,14 +3,14 @@ import { motion } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr } from "../utils/formatters";
-import { monthYearStr, avatarColor } from "../utils/dataHelpers";
+import { monthYearStr, avatarColor, toAmount, createId } from "../utils/dataHelpers";
 import { Sheet, TypeToggle, Label, FInput, FBtn, SearchBar } from "./Shared";
 
 const makeEmptyLoan = () => ({ type: "took", name: "", amount: "", reason: "", date: todayStr(), dueDate: "", status: "pending", payments: [] });
 
 export function Loans() {
   const { 
-    loans, setLoans, addLoan, updateLoan, deleteLoan, profile 
+    loans, setLoans, addLoan, updateLoan, deleteLoan, theme
   } = useFinance();
 
   const [search, setSearch] = useState("");
@@ -22,7 +22,6 @@ export function Loans() {
   const [payLoanId, setPayLoanId] = useState(null);
   const [payAmount, setPayAmount] = useState("");
 
-  const theme = profile.theme || "system";
   const currentTheme = THEMES[theme] || THEMES.light;
   const T = currentTheme.colors;
   const G = currentTheme.gradient;
@@ -37,8 +36,8 @@ export function Loans() {
     }
   };
 
-  const totalTook = loans.filter(l => l.type === "took" && l.status === "pending").reduce((s, l) => s + l.amount, 0);
-  const totalGave = loans.filter(l => l.type === "gave" && l.status === "pending").reduce((s, l) => s + l.amount, 0);
+  const totalTook = loans.filter(l => l.type === "took" && l.status === "pending").reduce((s, l) => s + toAmount(l.amount), 0);
+  const totalGave = loans.filter(l => l.type === "gave" && l.status === "pending").reduce((s, l) => s + toAmount(l.amount), 0);
   const net = totalGave - totalTook;
 
   const visible = loans
@@ -65,9 +64,13 @@ export function Loans() {
     if (!amt || amt <= 0) return;
     setLoans(prev => prev.map(l => {
       if (l.id !== loanId) return l;
-      const payments = [...(l.payments || []), { id: Date.now(), amount: amt, date: todayStr() }];
-      const paid = payments.reduce((s, p) => s + p.amount, 0);
-      const status = paid >= l.amount ? "returned" : "pending";
+      const existingPaid = (l.payments || []).reduce((s, p) => s + toAmount(p.amount), 0);
+      const remaining = Math.max(0, toAmount(l.amount) - existingPaid);
+      const appliedAmount = Math.min(amt, remaining);
+      if (appliedAmount <= 0) return { ...l, status: "returned" };
+      const payments = [...(l.payments || []), { id: createId(), amount: appliedAmount, date: todayStr() }];
+      const paid = existingPaid + appliedAmount;
+      const status = paid >= toAmount(l.amount) ? "returned" : "pending";
       return { ...l, payments, status };
     }));
     setPayAmount("");
@@ -124,9 +127,10 @@ export function Loans() {
 
         {visible.map(loan => {
           const payments = loan.payments || [];
-          const paidAmt = payments.reduce((s, p) => s + p.amount, 0);
-          const remaining = Math.max(0, loan.amount - paidAmt);
-          const paidPct = Math.min(100, loan.amount > 0 ? (paidAmt / loan.amount) * 100 : 0);
+          const paidAmt = payments.reduce((s, p) => s + toAmount(p.amount), 0);
+          const remaining = Math.max(0, toAmount(loan.amount) - paidAmt);
+          const loanAmount = toAmount(loan.amount);
+          const paidPct = Math.min(100, loanAmount > 0 ? (paidAmt / loanAmount) * 100 : 0);
           const isOverdue = loan.dueDate && loan.dueDate < todayStr() && loan.status === "pending";
           return (
             <motion.div key={loan.id} layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: visible.indexOf(loan) * 0.045, duration: 0.28, ease: [0.22, 1, 0.36, 1] }} whileTap={{ scale: 0.992 }} className="smooth-card" style={{
@@ -245,8 +249,9 @@ export function Loans() {
       {payLoanId && (() => {
         const loan = loans.find(l => l.id === payLoanId);
         if (!loan) return null;
-        const paid = (loan.payments || []).reduce((s, p) => s + p.amount, 0);
-        const remaining = loan.amount - paid;
+                 const paid = (loan.payments || []).reduce((s, p) => s + toAmount(p.amount), 0);
+         const remaining = toAmount(loan.amount) - paid;
+
         return (
           <div style={{
             position: "fixed", inset: 0, background: "rgba(10,26,24,0.55)", zIndex: 400,

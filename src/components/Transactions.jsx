@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime, compressImage } from "../utils/formatters";
-import { sortByDateDesc, monthYearStr, smartSearch } from "../utils/dataHelpers";
+import { sortByDateDesc, monthYearStr, smartSearch, toAmount } from "../utils/dataHelpers";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar } from "./Shared";
 import { INCOME_METHODS, EXPENSE_METHODS } from "../constants/seedData";
@@ -13,7 +13,7 @@ const makeEmptyTx = () => ({type:"expense",category:"",icon:"📦",amount:"",not
 export function Transactions() {
   const { 
     transactions, addTransaction, updateTransaction, deleteTransaction,
-    accounts, profile 
+    accounts, categories, theme
   } = useFinance();
 
   const [search, setSearch] = useState("");
@@ -25,17 +25,11 @@ export function Transactions() {
   const [filterType, setFilterType] = useState("all");
   const [filterMonth, setFilterMonth] = useState("");
 
-  const theme = profile.theme || "system";
   const currentTheme = THEMES[theme] || THEMES.light;
   const T = currentTheme.colors;
   const G = currentTheme.gradient;
   const R = THEME_CONFIG.radius;
   const SH = THEME_CONFIG.shadow;
-
-  const categories = {
-    income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
-    expense: [{l:"Food",icon:"🍛"},{l:"Travel",icon:"🚌"},{l:"Bills",icon:"📄"},{l:"Shopping",icon:"🛍️"},{l:"Health",icon:"💊"},{l:"Other",icon:"📦"}],
-  };
 
   const handlePhoto = (e) => {
     const file = e.target.files?.[0];
@@ -132,8 +126,8 @@ export function Transactions() {
   const accountNames = accounts.map(a => a.name);
   const methods = form.type === "income" ? INCOME_METHODS : EXPENSE_METHODS;
   const today = todayStr();
-  const todayInc = transactions.filter(t => t.type === "income" && t.date === today).reduce((s, t) => s + t.amount, 0);
-  const todayExp = transactions.filter(t => t.type === "expense" && t.date === today).reduce((s, t) => s + t.amount, 0);
+  const todayInc = transactions.filter(t => t.type === "income" && t.date === today).reduce((s, t) => s + toAmount(t.amount), 0);
+  const todayExp = transactions.filter(t => t.type === "expense" && t.date === today).reduce((s, t) => s + toAmount(t.amount), 0);
   const txColor = t => t.type === "income" ? T.income : t.type === "transfer" ? "#9F8AE8" : T.expense;
   const txBg = t => t.type === "income" ? T.incomeSoft : t.type === "transfer" ? T.transferSoft : T.expenseSoft;
   const txPrefix = t => t.type === "income" ? "+" : t.type === "transfer" ? "⇄" : "−";

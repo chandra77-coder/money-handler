@@ -3,8 +3,7 @@ import { motion } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, fmtTime } from "../utils/formatters";
-import { sortByDateDesc, monthYearStr, getLast6Months } from "../utils/dataHelpers";
-import { DonutChart } from "./Charts";
+import { sortByDateDesc, monthYearStr, getLast6Months, toAmount } from "../utils/dataHelpers";
 const CashFlowChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.CashFlowChart })));
 const SpendingPieChart = lazy(() => import("./ModernCharts").then(module => ({ default: module.SpendingPieChart })));
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
@@ -13,11 +12,11 @@ import { INCOME_METHODS, EXPENSE_METHODS } from "../constants/seedData";
 
 const makeEmptyTx = () => ({type:"expense",category:"",icon:"📦",amount:"",note:"",date:todayStr(),account:"",toAccount:"",method:"",photo:null});
 
-export function Dashboard() {
-  const { 
-    transactions, setTransactions, deleteTransaction, updateTransaction,
-    loans, accounts, openingBalance, declaredAmount, manualCheck, 
-    profile, totals, accountBalances, totalTracked, setActiveTab 
+export function Dashboard({ onOpenSettings }) {
+  const {
+    transactions, deleteTransaction, updateTransaction,
+    loans, accounts, openingBalance, declaredAmount, manualCheck,
+    profile, categories, theme, notifyEnabled, totals, accountBalances, totalTracked
   } = useFinance();
 
   const [selectedTx, setSelectedTx] = useState(null);
@@ -26,17 +25,11 @@ export function Dashboard() {
   const [editForm, setEditForm] = useState(makeEmptyTx);
   const [delTxId, setDelTxId] = useState(null);
 
-  const theme = profile.theme || "system";
   const currentTheme = THEMES[theme] || THEMES.light;
   const T = currentTheme.colors;
   const G = currentTheme.gradient;
   const R = THEME_CONFIG.radius;
   const SH = THEME_CONFIG.shadow;
-
-  const categories = {
-    income:  [{l:"Salary",icon:"💼"},{l:"Freelance",icon:"💻"},{l:"Business",icon:"🏪"},{l:"Gift",icon:"🎁"},{l:"Other",icon:"💰"}],
-    expense: [{l:"Food",icon:"🍛"},{l:"Travel",icon:"🚌"},{l:"Bills",icon:"📄"},{l:"Shopping",icon:"🛍️"},{l:"Health",icon:"💊"},{l:"Other",icon:"📦"}],
-  };
 
   const openEdit = (tx) => {
     setEditTxId(tx.id);
@@ -61,7 +54,7 @@ export function Dashboard() {
   const manualDiff = manualCheck - totalTracked;
   const recent = sortByDateDesc(transactions).slice(0, 4);
   const loggedToday = transactions.some(t => t.date === todayStr());
-  const showReminder = profile.notifyEnabled && !loggedToday;
+  const showReminder = notifyEnabled && !loggedToday;
 
   const txColor = (t) => t.type === "income" ? T.income : t.type === "transfer" ? "#9F8AE8" : T.expense;
   const txBg = (t) => t.type === "income" ? T.incomeSoft : t.type === "transfer" ? T.transferSoft : T.expenseSoft;
@@ -76,7 +69,7 @@ export function Dashboard() {
             <div style={{fontSize:11,opacity:.6,letterSpacing:1.5,fontWeight:600}}>{monthYearStr()}</div>
             <div style={{fontSize:20,fontWeight:700,fontFamily:THEME_CONFIG.font.money,marginTop:2}}>My Finance</div>
           </div>
-          <button onClick={() => setActiveTab("settings")} style={{width:40,height:40,borderRadius:14,background:T.glass,border:`1px solid ${T.glassBorder}`,
+          <button onClick={onOpenSettings} aria-label="Open settings" style={{width:40,height:40,borderRadius:14,background:T.glass,border:`1px solid ${T.glassBorder}`,
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",padding:0}}>⚙️</button>
         </div>
 
@@ -200,7 +193,7 @@ export function Dashboard() {
           const expThisMonth = transactions.filter(t => t.type === "expense" && (t.date || "").startsWith(curMonth));
           if (expThisMonth.length === 0) return null;
           const catMap = {};
-          expThisMonth.forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + t.amount; });
+          expThisMonth.forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + toAmount(t.amount); });
           const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
           const PALETTE = ["#E53E3E", "#3399FF", "#F5B942", "#1DB954", "#9F8AE8", "#E67E22"];
           const slices = sorted.map(([k, v], i) => ({ name: k, value: v, color: PALETTE[i % PALETTE.length] }));
@@ -238,7 +231,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={deleteTransaction} onEdit={openEdit} />
+      <TransactionDetailSheet tx={selectedTx} onClose={()=>setSelectedTx(null)} onDelete={id=>setDelTxId(id)} onEdit={openEdit} />
 
       <Sheet open={showEditSheet} onClose={()=>{setShowEditSheet(false); setEditTxId(null);}}>
         <div style={{fontSize:17,fontWeight:800,color:T.ink,marginBottom:14,fontFamily:THEME_CONFIG.font.money}}>Edit Transaction</div>

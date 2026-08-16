@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useFinance } from "../context/FinanceContext";
 import { THEMES, THEME_CONFIG } from "../constants/theme";
 import { fmt, todayStr, compressImage } from "../utils/formatters";
-import { monthYearStr, genWorkCode, applySpendAmountChange } from "../utils/dataHelpers";
+import { monthYearStr, genWorkCode, applySpendAmountChange, toAmount } from "../utils/dataHelpers";
 import { Sheet, TypeToggle, Label, FInput, ChipRow, FBtn, SearchBar } from "./Shared";
 
 const makeEmptyWork = () => ({ type: "work", name: "", customer: "", code: "", status: "unpaid", amount: "", method: "Cash", date: todayStr(), photo: null });
@@ -11,7 +11,7 @@ const makeEmptyWork = () => ({ type: "work", name: "", customer: "", code: "", s
 export function Work() {
   const { 
     workRecords, setWorkRecords, addWorkRecord, updateWorkRecord, deleteWorkRecord,
-    workNames, profile, workBalance 
+    workNames, theme, workBalance
   } = useFinance();
 
   const [search, setSearch] = useState("");
@@ -22,7 +22,6 @@ export function Work() {
   const [viewPhoto, setViewPhoto] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
-  const theme = profile.theme || "system";
   const currentTheme = THEMES[theme] || THEMES.light;
   const T = currentTheme.colors;
   const G = currentTheme.gradient;
@@ -77,11 +76,11 @@ export function Work() {
   };
 
   const today = todayStr();
-  const todayEarning = workRecords.filter(w => w.type === "work" && w.status === "paid" && w.date === today).reduce((s, w) => s + w.amount, 0);
+  const todayEarning = workRecords.filter(w => w.type === "work" && w.status === "paid" && w.date === today).reduce((s, w) => s + toAmount(w.amount), 0);
   const totalWork = workRecords.filter(w => w.type === "work").length;
   const paidCount = workRecords.filter(w => w.type === "work" && w.status === "paid").length;
   const unpaidCount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").length;
-  const unpaidAmount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").reduce((s, w) => s + w.amount, 0);
+  const unpaidAmount = workRecords.filter(w => w.type === "work" && w.status === "unpaid").reduce((s, w) => s + toAmount(w.amount), 0);
 
   const visible = workRecords.filter(w => {
     if (!search) return true;

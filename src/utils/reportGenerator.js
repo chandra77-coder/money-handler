@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
-import { fmt } from "./formatters";
+import { autoTable } from "jspdf-autotable";
+import { fmt, todayStr } from "./formatters";
+import { toAmount } from "./dataHelpers";
 
 export const generateTransactionReport = (transactions) => {
   const doc = new jsPDF();
@@ -12,16 +13,17 @@ export const generateTransactionReport = (transactions) => {
   doc.setTextColor(100);
   doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
   
-  const tableData = transactions.map(t => [
-    t.date,
-    t.category,
-    t.account,
-    t.type.toUpperCase(),
-    fmt(t.amount),
+  const rows = Array.isArray(transactions) ? transactions : [];
+  const tableData = rows.map(t => [
+    t.date || "—",
+    t.category || (t.type === "transfer" ? "Transfer" : "—"),
+    t.account || "—",
+    String(t.type || "unknown").toUpperCase(),
+    fmt(toAmount(t.amount)),
     t.note || "-"
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: 40,
     head: [["Date", "Category", "Account", "Type", "Amount", "Note"]],
     body: tableData,
@@ -29,5 +31,5 @@ export const generateTransactionReport = (transactions) => {
     headStyles: { fillColor: [45, 106, 159] }
   });
   
-  doc.save(`moneymate-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`moneymate-report-${todayStr()}.pdf`);
 };
