@@ -24,6 +24,36 @@ const normalizeTrash = (raw) => ({
   },
 });
 const amountOf = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const monthKeyFrom = (dateValue) => {
+  const raw = String(dateValue || "");
+  if (raw.length >= 7) return raw.slice(0, 7);
+  return "";
+};
+const previousMonthKey = (monthValue) => {
+  if (!monthValue || monthValue.length < 7) return "";
+  const [year, month] = monthValue.split("-").map(Number);
+  const date = new Date(year, month - 1, 1);
+  date.setMonth(date.getMonth() - 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+};
+const monthSnapshot = (accountsList, txList, monthValue) => {
+  const monthTx = txList.filter(tx => monthKeyFrom(tx.date) === monthValue);
+  const totals = {};
+  let total = 0;
+
+  accountsList.forEach(acc => {
+    const base = amountOf(acc.opening);
+    const income = monthTx.filter(tx => tx.type === "income" && tx.account === acc.name).reduce((sum, tx) => sum + amountOf(tx.amount), 0);
+    const expense = monthTx.filter(tx => tx.type === "expense" && tx.account === acc.name).reduce((sum, tx) => sum + amountOf(tx.amount), 0);
+    const tOut = monthTx.filter(tx => tx.type === "transfer" && tx.account === acc.name).reduce((sum, tx) => sum + amountOf(tx.amount), 0);
+    const tIn = monthTx.filter(tx => tx.type === "transfer" && tx.toAccount === acc.name).reduce((sum, tx) => sum + amountOf(tx.amount), 0);
+    const balance = base + income - expense - tOut + tIn;
+    totals[acc.name] = balance;
+    total += balance;
+  });
+
+  return { total, totals };
+};
 
 export const useFinance = () => {
   const context = useContext(FinanceContext);
@@ -37,6 +67,7 @@ export const FinanceProvider = ({ children }) => {
   const [loansState, setLoansState] = useLS("fm_loans", SEED_LOANS);
   const [accountsState, setAccountsState] = useLS("fm_accounts", SEED_ACCOUNTS);
   const [openingBalance, setOpeningBalance] = useLS("fm_opening", 0);
+  const [lastCarryMonth, setLastCarryMonth] = useLS("fm_last_carry_month", "");
   const [declaredAmount, setDeclaredAmount] = useLS("fm_declared", 0);
   const [goalAmount, setGoalAmount] = useLS("fm_goal", 0);
   const [manualCheck, setManualCheck] = useLS("fm_manual", 0);
@@ -140,6 +171,34 @@ export const FinanceProvider = ({ children }) => {
   const [pinEnabled, setPinEnabled] = useLS("fm_pin_enabled", false);
   const [notifyEnabled, setNotifyEnabled] = useLS("fm_notify_enabled", true);
 
+  const currentMonthKey = todayStr().slice(0, 7);
+  const previousMonth = previousMonthKey(currentMonthKey);
+
+  const previousMonthSnapshot = useMemo(() => {
+    if (!previousMonth) {
+      return { total: amountOf(openingBalance), totals: Object.fromEntries(accounts.map(acc => [acc.name, amountOf(acc.opening)])) };
+    }
+    return monthSnapshot(accounts, transactions, previousMonth);
+  }, [accounts, transactions, previousMonth, openingBalance]);
+
+  useEffect(() => {
+    if (!currentMonthKey || lastCarryMonth === currentMonthKey) return;
+
+    const nextAccountOpenings = Object.fromEntries(
+      accounts.map(acc => [acc.name, previousMonthSnapshot.totals[acc.name] ?? amountOf(acc.opening)])
+    );
+
+    const nextOpeningBalance = previousMonthSnapshot.total || amountOf(openingBalance);
+    if (Object.keys(nextAccountOpenings).length) {
+      setAccounts(prev => prev.map(acc => ({
+        ...acc,
+        opening: amountOf(nextAccountOpenings[acc.name] ?? acc.opening),
+      })));
+    }
+    setOpeningBalance(nextOpeningBalance);
+    setLastCarryMonth(currentMonthKey);
+  }, [accounts, currentMonthKey, lastCarryMonth, openingBalance, previousMonthSnapshot, setAccounts, setOpeningBalance, setLastCarryMonth]);
+
   // --- Calculations ---
   const accountBalances = useMemo(() => {
     return accounts.map(acc => {
@@ -152,8 +211,8 @@ export const FinanceProvider = ({ children }) => {
   }, [accounts, transactions]);
 
   const totalTracked = useMemo(() => {
-    return accountBalances.reduce((s, a) => s + amountOf(a.balance), 0) + amountOf(openingBalance);
-  }, [accountBalances, openingBalance]);
+    return accountBalances.reduce((s, a) => s + amountOf(a.balance), 0);
+  }, [accountBalances]);
 
   const workBalance = useMemo(() => {
     return workRecords.reduce((total, record) => 
