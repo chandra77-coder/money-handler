@@ -32,3 +32,15 @@ button::-moz-focus-inner { border: 0; padding: 0; }
 
 /* Date input styling */
 input[type="date"] { color-scheme: light; }
+
+/* Keep shared search fields readable in every app theme. */
+input[placeholder^="Search"] {
+  background: var(--bgSoft) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+input[placeholder^="Search"]::placeholder {
+  color: var(--inkSoft);
+  opacity: 1;
+}
