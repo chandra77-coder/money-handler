@@ -21,8 +21,8 @@ export const getLast6Months = (transactions) => {
 };
 export const avatarColor = (name) => {
   const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22"];
-  const charCode = (name || "?").charCodeAt(0);
-  return colors[charCode % colors.length];
+  if (typeof name !== "string" || name.length === 0) return colors[0];
+  return colors[name.charCodeAt(0) % colors.length];
 };
 export const genWorkCode = (existingCodes) => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
